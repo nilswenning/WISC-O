@@ -32,7 +32,7 @@ def add_id(job_id, service_id):
 def trascibe_jojo(wisco_id: str, jobInfo: dict):
     settings = jobInfo['settings']
     logger.info(f"Processing job {jobInfo['oldFileName']}")
-    jojo_auth = os.environ.get("JOJO_AUTH")
+    jojo_auth = f"{os.environ.get('JOJO_AUTH_USER')}:{os.environ.get('JOJO_AUTH_PASSWORD')}"
     auth_base64 = base64.b64encode(jojo_auth.encode()).decode()
     headers = {
         'Content-Type': 'application/octet-stream',
@@ -142,7 +142,7 @@ def start_transcription(wisco_id, job_info):
 
 def download_txt(service, job_id,url, wisco_id):
     url = url + "?output=txt"
-    jojo_auth = os.environ.get("JOJO_AUTH")
+    jojo_auth = f"{os.environ.get('JOJO_AUTH_USER')}:{os.environ.get('JOJO_AUTH_PASSWORD')}"
     auth_base64 = base64.b64encode(jojo_auth.encode()).decode()
     headers = {
         'Authorization': f'Basic {auth_base64}',
