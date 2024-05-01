@@ -43,6 +43,7 @@ from fastapi.responses import FileResponse
 import handler
 import utils
 import auth
+import apiResponses
 
 
 
@@ -127,18 +128,18 @@ async def get_api_key(
     try:
         wisco_username = f"wisco:user:{username}"
         if r.exists(wisco_username) == 0:
-            response = utils.ApiResponse("fail", f"User {username} not found")
+            response = apiResponses.ApiResponse("fail", f"User {username} not found")
             return response.to_dict()
         user_api_key = auth.get_api_key_from_username(wisco_username, password)
         if user_api_key is not False:
-            response = utils.ApiResponse("success", f"Your API Key is {user_api_key}",raw=user_api_key)
+            response = apiResponses.ApiResponse("success", f"Your API Key is {user_api_key}",raw=user_api_key)
             return response.to_dict()
         else:
-            response = utils.ApiResponse("fail", "Password is incorrect")
+            response = apiResponses.ApiResponse("fail", "Password is incorrect")
             return response.to_dict()
     except Exception as e:
         logger.exception(e)
-        response = utils.ApiResponse("fail", "There was an error getting the API Key")
+        response = apiResponses.ApiResponse("fail", "There was an error getting the API Key")
         return response.to_dict()
 @app.post("/v1/getUserInfo")
 async def get_user_info(
@@ -147,11 +148,11 @@ async def get_user_info(
         user_name = auth.get_user_name(str(api_key))
         user_info = r.json().get("wisco:user:" + user_name)
         user_info["password"] = "*********" # hide password
-        response = utils.ApiResponse("success", f"Your user info is {user_info}", raw=user_info)
+        response = apiResponses.ApiResponse("success", f"Your user info is {user_info}", raw=user_info)
         return response.to_dict()
     except Exception as e:
         logger.exception(e)
-        response = utils.ApiResponse("fail", "There was an error getting the user info")
+        response = apiResponses.ApiResponse("fail", "There was an error getting the user info")
         return response.to_dict()
 
 
@@ -161,11 +162,11 @@ async def get_quota(
         api_key: APIKey = Depends(auth.get_api_key)):
     try:
         quota = auth.get_remaining_quota(str(api_key))
-        response = utils.ApiResponse("success", f"Your quota is {quota}", raw=quota)
+        response = apiResponses.ApiResponse("success", f"Your quota is {quota}", raw=quota)
         return response.to_dict()
     except Exception as e:
         logger.exception(e)
-        response = utils.ApiResponse("fail", "There was an error getting the quota")
+        response = apiResponses.ApiResponse("fail", "There was an error getting the quota")
         return response.to_dict()
 
 # Allows for uploading multiple files

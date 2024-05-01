@@ -38,8 +38,14 @@ def trascibe_jojo(wisco_id: str, jobInfo: dict):
         'Content-Type': 'application/octet-stream',
         'Authorization': f'Basic {auth_base64}',
     }
+    webhook_id = None
+    # check if webhook_id is an evirment variable
+    if os.environ.get("JOJO_WEBHOOK_ID") is not None:
+        webhook_id = os.environ.get("JOJO_WEBHOOK_ID")
+    else:
+        webhook_id = "WISCO"
     params = {
-        'webhook_id': 'WISCO',
+        'webhook_id': webhook_id,
         'language': 'german',
     }
     if settings["accuracy"] == "high":
@@ -55,6 +61,7 @@ def trascibe_jojo(wisco_id: str, jobInfo: dict):
             data = file.read()
     except Exception as e:
         logger.exception(e)
+    jojo_response = None
     try:
         jojoBaseUrl = os.environ.get("JOJO_BASE_URL")
         jojo_response = requests.post(f'{jojoBaseUrl}/v1/transcribe', params=params, headers=headers, data=data)
@@ -62,6 +69,8 @@ def trascibe_jojo(wisco_id: str, jobInfo: dict):
         add_id(wisco_id, service_id)
         logger.info(f"Processing job: Sended to JOJO with id {service_id}")
     except Exception as e:
+        set_job_failed(wisco_id, f"Error in transcribing audio with JOJO: {jojo_response}")
+        logger.error(f"Error processing job: {jobInfo['oldFileName']}")
         logger.exception(e)
 
 def transcribe_OpenAi(wisco_id: str, jobInfo: dict):
@@ -81,6 +90,7 @@ def transcribe_OpenAi(wisco_id: str, jobInfo: dict):
             change_key(wisco_id, "status", "text")
             summarize(wisco_id)
     except Exception as e:
+        set_job_failed(wisco_id, "Error in transcribing text")
         logger.exception(e)
         logger.error(f"Error transcribing file: {jobInfo['oldFileName']}")
 
@@ -92,7 +102,10 @@ def parse_job(settings: str,user_name , oldfileName, newFileName,length, r, stat
         "settings": json.loads(settings),
         "length": length,
         "yt_url": yt_url,
-        "status": status
+        "created_at": utils.get_time_since_epoch_as_str(),
+        "finished_at": "",
+        "status": status,
+        "error": ""
     }
     return jobInfos
 
@@ -145,7 +158,7 @@ def download_txt(service, job_id,url, wisco_id):
     jojo_auth = f"{os.environ.get('JOJO_AUTH_USER')}:{os.environ.get('JOJO_AUTH_PASSWORD')}"
     auth_base64 = base64.b64encode(jojo_auth.encode()).decode()
     headers = {
-        'Authorization': f'Basic {auth_base64}',
+        'Authorization': f'Basic {auth_base64}'
     }
     response = requests.get(url, headers=headers)
     file_name = os.path.join(download_folder, "transcriptions", wisco_id.split(":")[-1])+ ".txt"
@@ -153,14 +166,19 @@ def download_txt(service, job_id,url, wisco_id):
     with open(file_name, 'w') as file:
         file.write(response.text)
 
-def change_key(wisco_id,key, status):
+def change_key(wisco_id,key, value):
     job_infos = r.json().get(wisco_id, Path.root_path())
-    job_infos[key] = status
+    job_infos[key] = value
     r.json().set(wisco_id, Path.root_path(), job_infos)
 
 def get_key(wisco_id,key):
     job_infos = r.json().get(wisco_id, Path.root_path())
     return job_infos[key]
+
+def set_job_failed(wisco_id, error_msg):
+    change_key(wisco_id, "status", "failed")
+    change_key(wisco_id, "error", error_msg)
+    change_key(wisco_id, "finished_at", utils.get_time_since_epoch_as_str())
 
 def exec_transcription_done(wisco_id, payload):
     if payload.source == "waas":
@@ -181,8 +199,7 @@ def openai_summaize(system_prompt,user_prompt, text ,wisco_id):
             ]
         )
     except Exception as e:
-        # TODO notify the user
-        change_key(wisco_id,"status","summarise failed")
+        set_job_failed(wisco_id, "Error in summarising text - GPT Error")
         logger.exception(e)
     openai_resp_cont = openai_resp.choices[0].message.content
     if "::" in openai_resp_cont:
@@ -193,8 +210,7 @@ def openai_summaize(system_prompt,user_prompt, text ,wisco_id):
         change_key(wisco_id,"status","summarised")
         logger.info("Text Summariesed Successfully with id: {wisco_id}")
     else:
-        # TODO notify the user that an error happend
-        change_key(wisco_id,"status","summarise failed")
+        set_job_failed(wisco_id, "Error in summarising text - GPT Response Error")
     # Create Md
     create_md(wisco_id)
 
@@ -239,6 +255,7 @@ def create_md(wisco_id):
         file.write(md)
     change_key(wisco_id, "status", "summary-saved")
     change_key(wisco_id, "summary_file_name", f"{date_str}-{s_title}.md")
+    change_key(wisco_id, "finished_at", utils.get_time_since_epoch_as_str())
     # if all went well the quota is reduced by the munites of the audio file
     user = get_key(wisco_id, "user")
     auth.decrease_quota(user, get_key(wisco_id, "length"))
