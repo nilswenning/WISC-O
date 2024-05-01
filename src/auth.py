@@ -5,6 +5,7 @@ from starlette.status import HTTP_403_FORBIDDEN
 from conf import r
 import json
 import redis
+import bcrypt
 from redis.commands.json.path import Path
 import logging
 
@@ -54,3 +55,27 @@ async def get_api_key(
     else:
         raise HTTPException(status_code=403)
 
+
+def hash_password(password):
+    salt = bcrypt.gensalt()
+    hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
+    return hashed.decode('utf-8')
+
+
+def updateUser(user_id, user_info):
+    user_info["password"] = hash_password(user_info["password"])
+    r.json().set(user_id, Path.root_path(), user_info)
+
+
+def check_password(user_id, password):
+    user_info = r.json().get(user_id)
+    hashed_password = user_info["password"].encode('utf-8')
+
+    return bcrypt.checkpw(password.encode('utf-8'), hashed_password)
+
+def get_api_key_from_username(user_id, password):
+    user_info = r.json().get(user_id)
+    if check_password(user_id,password):
+        return user_info["api_key"]
+    else:
+        return False

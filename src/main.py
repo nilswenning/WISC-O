@@ -7,6 +7,7 @@ import os
 import json
 import datetime
 
+
 from conf import upload_folder, r, queue, download_folder, log_directory
 
 if not os.path.exists(log_directory):
@@ -72,7 +73,7 @@ wisco_user = {
     "quota": 10000,
 }
 try:
-    r.json().set(wisco_user_id, Path.root_path(), wisco_user)
+    auth.updateUser(wisco_user_id, wisco_user)
 except redis.exceptions.ResponseError as e:
     None
 
@@ -117,7 +118,55 @@ async def create_file_dl(
         return {"message": f"There was an error downloading the file"}
 
 
+# User specific routes
 
+@app.post("/v1/getApiKey")
+async def get_api_key(
+        username: Annotated[str, Form()],
+        password: Annotated[str, Form()]):
+    try:
+        wisco_username = f"wisco:user:{username}"
+        if r.exists(wisco_username) == 0:
+            response = utils.ApiResponse("fail", f"User {username} not found")
+            return response.to_dict()
+        user_api_key = auth.get_api_key_from_username(wisco_username, password)
+        if user_api_key is not False:
+            response = utils.ApiResponse("success", f"Your API Key is {user_api_key}",raw=user_api_key)
+            return response.to_dict()
+        else:
+            response = utils.ApiResponse("fail", "Password is incorrect")
+            return response.to_dict()
+    except Exception as e:
+        logger.exception(e)
+        response = utils.ApiResponse("fail", "There was an error getting the API Key")
+        return response.to_dict()
+@app.post("/v1/getUserInfo")
+async def get_user_info(
+        api_key: APIKey = Depends(auth.get_api_key)):
+    try:
+        user_name = auth.get_user_name(str(api_key))
+        user_info = r.json().get("wisco:user:" + user_name)
+        user_info["password"] = "*********" # hide password
+        response = utils.ApiResponse("success", f"Your user info is {user_info}", raw=user_info)
+        return response.to_dict()
+    except Exception as e:
+        logger.exception(e)
+        response = utils.ApiResponse("fail", "There was an error getting the user info")
+        return response.to_dict()
+
+
+
+@app.post("/v1/getQuota")
+async def get_quota(
+        api_key: APIKey = Depends(auth.get_api_key)):
+    try:
+        quota = auth.get_remaining_quota(str(api_key))
+        response = utils.ApiResponse("success", f"Your quota is {quota}", raw=quota)
+        return response.to_dict()
+    except Exception as e:
+        logger.exception(e)
+        response = utils.ApiResponse("fail", "There was an error getting the quota")
+        return response.to_dict()
 
 # Allows for uploading multiple files
 @app.post("/v1/createJob")
@@ -141,17 +190,30 @@ async def create_file(
 
             audo_length = utils.get_audio_length(os.path.join(folder, new_filename))
             if audo_length > auth.get_remaining_quota(str(api_key)):
-                return {"message": f"Your audio is too long. You have only {auth.get_remaining_quota(str(api_key))} minutes left and the audio is {audo_length} minutes long"}
+                quota = auth.get_remaining_quota(str(api_key))
+                answer = {
+                    "status": "fail",
+                    "message": f"Your audio is too long. You have only {quota} minutes left and the audio is {audo_length} minutes long"
+                }
+                return answer
 
             job_info = handler.parse_job(settings, auth.get_user_name(str(api_key)), file.filename, new_filename, audo_length, r)
             wisco_job_id = handler.create_job_info(job_info, r, queue)
             handler.start_transcription(wisco_job_id, job_info)
         except Exception as e:
             logger.exception(e)
-            return {"message": f"There was an error uploading the file(s)"}
+            answer = {
+                "status": "fail",
+                "message": f"There was an error uploading the file(s)"
+            }
+            return answer
         finally:
             file.file.close()
-    return {"message": f"Successfuly uploaded {[file.filename for file in files]} and the settings are {settings} and the token is {api_key}"}
+    answer = {
+        "status": "success",
+        "message": f"Successfuly uploaded {[file.filename for file in files]} and the settings are {settings}"
+    }
+    return answer
 
 
 @app.post("/v1/resummarize")
@@ -163,7 +225,7 @@ async def resummarize(
         handler.summarize(wisco_id)
     except Exception as e:
         logger.exception(e)
-    return {"message": f"Success"}
+    return {"status": "success"}
 
 @app.post("/v1/createMd")
 async def create_md_test(
@@ -174,7 +236,7 @@ async def create_md_test(
         handler.create_md(wisco_id)
     except Exception as e:
         logger.exception(e)
-    return {"message": f"Success"}
+    return {"status": "success"}
 
 
 
