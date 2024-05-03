@@ -1,0 +1,40 @@
+services:
+  wisco_api:
+    build: .
+    depends_on:
+      - redis
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./appData/downloads:/code/downloads
+      - ./appData/uploads:/code/uploads
+    environment:
+      - OPENAI_API_KEY=YOUR_OPEN_AI_API_KEY
+      - redis_host=redis
+      - admin_email=YOUR_EMAIL # Not important yet can be leaved as is
+      - admin_password=YOUR_PASSWORD # Not important yet leaved as is
+      - admin_api_key=YOUR_API_KEY # for now generate a random string and use it
+      - JOJO_BASE_URL = http://localhost:8000 # If you are running a self hosted Jojo instance
+      - JOJO_AUTH = username:password # If you are running a self hosted Jojo instance with basic auth
+
+
+    restart: always
+    command: uvicorn main:app --host 0.0.0.0 --port 8000
+
+  wisco_worker:
+    build: .
+    volumes:
+      - ./appData/downloads:/code/downloads
+      - ./appData/uploads:/code/uploads
+    environment:
+      - OPENAI_API_KEY=YOUR_OPEN_AI_API_KEY
+      - OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES
+      - JOJO_BASE_URL = http://localhost:8000 # If you are running a self hosted Jojo instance
+      - JOJO_AUTH = username:password # If you are running a self hosted Jojo instance with basic auth
+      - redis_host=redis
+    restart: always
+    command: rq worker --url redis://redis:6379 --with-scheduler
+
+
+  redis:
+    image: "redis/redis-stack:latest"
