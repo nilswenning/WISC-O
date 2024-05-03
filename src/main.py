@@ -119,6 +119,53 @@ async def create_file_dl(
         return {"message": f"There was an error downloading the file"}
 
 
+# Allows for uploading multiple files
+@app.post("/v1/createJob")
+async def create_file(
+        files: List[UploadFile],
+        settings: Annotated[str, Form()],
+        api_key: APIKey = Depends(auth.get_api_key)):
+
+
+    for file in files:
+        try:
+            logger.info(f"processing file: {file.filename}")
+            extension = file.filename.split(".")[-1]
+            new_filename = utils.createFileName(extension, r)
+            logger.debug(f"writing file: {new_filename}")
+            folder = os.path.join(upload_folder, "audio")
+            os.makedirs(folder, exist_ok=True)
+            with open(os.path.join(folder, new_filename), 'wb') as f:
+                while contents := file.file.read(1024 * 1024):
+                    f.write(contents)
+
+            audo_length = utils.get_audio_length(os.path.join(folder, new_filename))
+            if audo_length > auth.get_remaining_quota(str(api_key)):
+                quota = auth.get_remaining_quota(str(api_key))
+                answer = {
+                    "status": "fail",
+                    "message": f"Your audio is too long. You have only {quota} minutes left and the audio is {audo_length} minutes long"
+                }
+                return answer
+
+            job_info = handler.parse_job(settings, auth.get_user_name(str(api_key)), file.filename, new_filename, audo_length, r)
+            wisco_job_id = handler.create_job_info(job_info, r, queue)
+            handler.start_transcription(wisco_job_id, job_info)
+        except Exception as e:
+            logger.exception(e)
+            answer = {
+                "status": "fail",
+                "message": f"There was an error uploading the file(s)"
+            }
+            return answer
+        finally:
+            file.file.close()
+    answer = {
+        "status": "success",
+        "message": f"Successfuly uploaded {[file.filename for file in files]} and the settings are {settings}"
+    }
+    return answer
+
 # User specific routes
 
 @app.post("/v1/getApiKey")
@@ -168,53 +215,6 @@ async def get_quota(
         logger.exception(e)
         response = apiResponses.ApiResponse("fail", "There was an error getting the quota")
         return response.to_dict()
-
-# Allows for uploading multiple files
-@app.post("/v1/createJob")
-async def create_file(
-        files: List[UploadFile],
-        settings: Annotated[str, Form()],
-        api_key: APIKey = Depends(auth.get_api_key)):
-
-
-    for file in files:
-        try:
-            logger.info(f"processing file: {file.filename}")
-            extension = file.filename.split(".")[-1]
-            new_filename = utils.createFileName(extension, r)
-            logger.debug(f"writing file: {new_filename}")
-            folder = os.path.join(upload_folder, "audio")
-            os.makedirs(folder, exist_ok=True)
-            with open(os.path.join(folder, new_filename), 'wb') as f:
-                while contents := file.file.read(1024 * 1024):
-                    f.write(contents)
-
-            audo_length = utils.get_audio_length(os.path.join(folder, new_filename))
-            if audo_length > auth.get_remaining_quota(str(api_key)):
-                quota = auth.get_remaining_quota(str(api_key))
-                answer = {
-                    "status": "fail",
-                    "message": f"Your audio is too long. You have only {quota} minutes left and the audio is {audo_length} minutes long"
-                }
-                return answer
-
-            job_info = handler.parse_job(settings, auth.get_user_name(str(api_key)), file.filename, new_filename, audo_length, r)
-            wisco_job_id = handler.create_job_info(job_info, r, queue)
-            handler.start_transcription(wisco_job_id, job_info)
-        except Exception as e:
-            logger.exception(e)
-            answer = {
-                "status": "fail",
-                "message": f"There was an error uploading the file(s)"
-            }
-            return answer
-        finally:
-            file.file.close()
-    answer = {
-        "status": "success",
-        "message": f"Successfuly uploaded {[file.filename for file in files]} and the settings are {settings}"
-    }
-    return answer
 
 
 @app.post("/v1/resummarize")
