@@ -328,7 +328,7 @@ async def get_Zip_File_Name(
                 handler.change_key(doc.id, "downloaded", True)
         if not file_names:
             return {"message": "No new files to download"}
-        zip_file_name = utils.zipSummaries(file_names, user)
+        zip_file_name = utils.create_summary_zip(file_names, user)
         return {"message": f"Zip file created: {zip_file_name}", "zip_file_name": zip_file_name}
     except Exception as e:
         logger.exception(e)

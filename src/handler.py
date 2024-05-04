@@ -291,6 +291,7 @@ def parse_job(settings: str, user_name, oldfileName, newFileName, length, status
         "yt_url": yt_url,
         "created_at": utils.get_epoch_time_as_string(),
         "finished_at": "",
+        "downloaded": False,
         "status": status,
         "retry": 0,
         "no_more_retry": False,
