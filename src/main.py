@@ -306,9 +306,10 @@ async def commands(
         user_info = auth.get_user_info(str(api_key))
         if not user_info["role"] == "admin":
             return {"message": "You are not allowed to use this command"}
+        logger.info(f"Executing command: {command}")
         if command == "FLUSHALL":
-            os.remove(download_folder)
-            os.remove(upload_folder)
+            utils.remove_in_folder(upload_folder)
+            utils.remove_in_folder(download_folder)
             r.flushall()
             utils.init_db()
             return {"message": "Database flushed"}

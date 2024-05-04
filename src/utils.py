@@ -10,6 +10,7 @@ import pytz  # for timezones
 from pydantic import BaseModel
 from pydub import AudioSegment
 import math
+import shutil
 import bcrypt
 from conf import r
 from conf import download_folder
@@ -158,3 +159,33 @@ def create_summary_zip(file_names: list, user_name: str) -> str:
 def get_epoch_time_as_string() -> str:
     """Get the current time since epoch as a string."""
     return str(round(datetime.datetime.now().timestamp()))
+
+
+import os
+
+
+def remove_in_folder(folder_path):
+    """
+    Remove all folders and files within the specified folder recursively.
+
+    Parameters:
+        folder_path (str): The path to the folder from which folders will be removed.
+
+    Returns:
+        None
+    """
+    # Check if the folder path exists
+    if not os.path.exists(folder_path):
+        print(f"The folder '{folder_path}' does not exist.")
+        return
+
+    # Recursively remove all files and folders within the specified folder
+    for root, dirs, files in os.walk(folder_path, topdown=False):
+        for name in files:
+            file_path = os.path.join(root, name)
+            os.remove(file_path)
+            logging.debug(f"Removed file: {file_path}")
+        for name in dirs:
+            dir_path = os.path.join(root, name)
+            shutil.rmtree(dir_path)
+            logging.debug(f"Removed directory: {dir_path}")
