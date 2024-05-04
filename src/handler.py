@@ -8,8 +8,9 @@ import json
 import redis
 from redis.commands.json.path import Path
 import requests
-from conf import upload_folder, download_folder
-from conf import r, Queue
+from conf import upload_folder, download_folder ,number_of_retries
+from conf import r, queue
+from rq import Queue
 import utils
 import auth
 import base64
@@ -27,16 +28,13 @@ def start_transcription(wisco_id, job_info):
     settings = job_info['settings']
     if settings["speed"] == "slow":
         try:
-            # TODO Change to Queue
-            # queue.enqueue(trascibe_jojo,wisco_id, job_info)
-            trascibe_jojo(wisco_id, job_info)
+            queue.enqueue(trascibe_jojo, wisco_id, job_info)
             logger.info(f"'{wisco_id}' Summarize started with JOJO")
         except Exception as e:
             logger.exception(e)
     if settings["speed"] == "fast":
         try:
-            # TODO Change to Queue
-            exec_OpenAI_flow(wisco_id, job_info)
+            queue.enqueue(trascibe_jojo, wisco_id, job_info)
         except Exception as e:
             logger.exception(e)
 
@@ -60,8 +58,19 @@ def exec_OpenAI_flow(wisco_id, job_info):
 
 
 def exec_combined_flow(wisco_id):
-    summarize(wisco_id)
-    create_md(wisco_id)
+    if get_key(wisco_id, "retry") < number_of_retries:
+        try:
+            summarize(wisco_id)
+            create_md(wisco_id)
+        except Exception as e:
+            logger.error(f"Error in processing job: {wisco_id} retrying")
+            logger.exception(e)
+            change_key(wisco_id, "retry", get_key(wisco_id, "retry") + 1)
+            queue.enqueue(exec_combined_flow, wisco_id)
+    else:
+        change_key(wisco_id, "no_more_retry", True)
+        change_key(wisco_id, "finished_at", utils.get_epoch_time_as_string())
+        logger.error(f"Max Retries reached for job: {wisco_id}")
 
 
 #Downloader
@@ -283,6 +292,8 @@ def parse_job(settings: str, user_name, oldfileName, newFileName, length, status
         "created_at": utils.get_epoch_time_as_string(),
         "finished_at": "",
         "status": status,
+        "retry": 0,
+        "no_more_retry": False,
         "error": ""
     }
     return jobInfos

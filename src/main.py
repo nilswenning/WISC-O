@@ -112,7 +112,7 @@ async def create_file_dl(
     wisco_job_id = handler.create_job_info(job_info, r, queue)
     logger.info(f"Video: {file_name} connected with Job: {wisco_job_id}")
     try:
-        handler.dl_video(url, file_name, new_filename, new_filename_stripped, wisco_job_id, job_info)
+        queue.enqueue(handler.dl_video, url, file_name, new_filename, new_filename_stripped, wisco_job_id, job_info)
         # Answer to the user
         response = apiResponses.ApiResponse("success", f"Your Job was created with the ID: {wisco_job_id}")
         return response.to_dict()

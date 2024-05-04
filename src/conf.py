@@ -16,3 +16,6 @@ queue = Queue(connection=r)
 upload_folder = os.path.join("..", "uploads")
 download_folder = os.path.join("..", "downloads")
 log_directory = '../logs'
+
+# Other Config
+number_of_retries = 3
