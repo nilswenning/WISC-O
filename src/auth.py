@@ -79,3 +79,9 @@ def get_api_key_from_username(user_id, password):
         return user_info["api_key"]
     else:
         return False
+
+def get_user_info(api_key: str) -> dict:
+    """Get the user information from the database using the API key."""
+    user_name = get_user_name(str(api_key))
+    user_info = r.json().get("wisco:user:" + user_name)
+    return user_info

@@ -250,8 +250,7 @@ async def get_api_key(
 async def get_user_info(
         api_key: APIKey = Depends(auth.get_api_key)):
     try:
-        user_name = auth.get_user_name(str(api_key))
-        user_info = r.json().get("wisco:user:" + user_name)
+        user_info = auth.get_user_info(str(api_key))
         user_info["password"] = "*********" # hide password
         response = apiResponses.ApiResponse("success", f"Your user info is {user_info}", raw=user_info)
         return response.to_dict()
@@ -304,7 +303,7 @@ async def commands(
         api_key: APIKey = Depends(auth.get_api_key)):
     try:
         # Check if user is admin
-        user_info = get_user_info(str(api_key))
+        user_info = auth.get_user_info(str(api_key))
         if not user_info["role"] == "admin":
             return {"message": "You are not allowed to use this command"}
         if command == "FLUSHALL":
