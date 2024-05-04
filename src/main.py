@@ -90,7 +90,7 @@ async def create_file_dl(
 
 
     try:
-        file_name, duration = utils.get_video_infos(url)
+        file_name, duration = utils.extract_video_info(url)
     except Exception as e:
         logger.exception(e)
         return {"message": f"There was an error getting video Infos"}
@@ -105,12 +105,10 @@ async def create_file_dl(
         response = apiResponses.ApiResponse("fail", f"Your video is too long. You have only {auth.get_remaining_quota(str(api_key))} minutes left and the video is {video_minutes} minutes long")
         return response.to_dict()
 
-
-
     logger.info(f"processing YT Video: {file_name}")
-    new_filename = utils.createFileName("mp3", r)
+    new_filename = utils.create_filename("mp3")
     new_filename_stripped = new_filename.split(".")[0]
-    job_info = handler.parse_job(settings, auth.get_user_name(str(api_key)), file_name, new_filename, video_minutes, r, status="DL", yt_url=url)
+    job_info = handler.parse_job(settings, auth.get_user_name(str(api_key)), file_name, new_filename, video_minutes, status="DL", yt_url=url)
     wisco_job_id = handler.create_job_info(job_info, r, queue)
     logger.info(f"Video: {file_name} connected with Job: {wisco_job_id}")
     try:
@@ -136,7 +134,7 @@ async def create_file(
         try:
             logger.info(f"processing file: {file.filename}")
             extension = file.filename.split(".")[-1]
-            new_filename = utils.createFileName(extension, r)
+            new_filename = utils.create_filename(extension)
             logger.debug(f"writing file: {new_filename}")
             folder = os.path.join(upload_folder, "audio")
             os.makedirs(folder, exist_ok=True)
@@ -144,13 +142,13 @@ async def create_file(
                 while contents := file.file.read(1024 * 1024):
                     f.write(contents)
 
-            audo_length = utils.get_audio_length(os.path.join(folder, new_filename))
+            audo_length = utils.get_audio_length_in_minutes(os.path.join(folder, new_filename))
             if audo_length > auth.get_remaining_quota(str(api_key)):
                 quota = auth.get_remaining_quota(str(api_key))
                 response = apiResponses.ApiResponse("fail", f"Your audio is too long. You have only {quota} minutes left and the audio is {audo_length} minutes long")
                 return response.to_dict()
 
-            job_info = handler.parse_job(settings, auth.get_user_name(str(api_key)), file.filename, new_filename, audo_length, r)
+            job_info = handler.parse_job(settings, auth.get_user_name(str(api_key)), file.filename, new_filename, audo_length)
             wisco_job_id = handler.create_job_info(job_info, r, queue)
             handler.start_transcription(wisco_job_id, job_info)
         except Exception as e:

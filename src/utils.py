@@ -61,7 +61,7 @@ def extract_video_info(url: str) -> tuple:
         return info_dict.get('title'), info_dict.get('duration')
 
 
-def download_audio_as_mp3(url: str, filename: str) -> None:
+def download_video_as_mp3(url: str, filename: str) -> None:
     """Download the audio of a video as an MP3 file with the specified filename."""
     options = {
         'format': 'bestaudio/best',

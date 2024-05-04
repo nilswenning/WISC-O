@@ -25,10 +25,10 @@ def is_key_valid(api_key: str) -> bool:
         return False
     return True
 
-def get_remaining_quota(api_key: str) -> bool:
+def get_remaining_quota(api_key: str) -> int:
     search_res = r.ft("service_UserIDX").search(api_key)
     user_info = json.loads(search_res.docs[0].json)
-    return user_info["quota"]
+    return int(user_info["quota"])
 
 def get_user_name(api_key: str) -> str:
     search_res = r.ft("service_UserIDX").search(api_key)

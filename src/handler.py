@@ -5,14 +5,12 @@ logger = logging.getLogger(__name__)
 from datetime import datetime
 import os
 import json
-from rq import Queue
 import redis
 from redis.commands.json.path import Path
 import requests
 from conf import upload_folder, download_folder
 from conf import r, Queue
 import utils
-import time
 import auth
 import base64
 
@@ -48,8 +46,7 @@ def exec_JOJO_flow(wisco_id, payload):
     if payload.source == "waas":
         try:
             download_txt(payload.source, payload.job_id, payload.url, wisco_id)
-            summarize(wisco_id)
-            create_md(wisco_id)
+            exec_combined_flow(wisco_id)
         except Exception as e:
             logger.exception(e)
 
@@ -57,10 +54,14 @@ def exec_JOJO_flow(wisco_id, payload):
 def exec_OpenAI_flow(wisco_id, job_info):
     try:
         transcribe_OpenAi(wisco_id, job_info)
-        summarize(wisco_id)
-        create_md(wisco_id)
+        exec_combined_flow(wisco_id)
     except Exception as e:
         logger.exception(e)
+
+
+def exec_combined_flow(wisco_id):
+    summarize(wisco_id)
+    create_md(wisco_id)
 
 
 #Downloader
@@ -95,6 +96,7 @@ def download_txt(service, job_id, url, wisco_id):
     except Exception as e:
         set_job_failed(wisco_id, "Error in downloading text")
         logger.exception(e)
+        raise e
 
 
 # Transcription
@@ -130,6 +132,7 @@ def trascibe_jojo(wisco_id: str, jobInfo: dict):
             data = file.read()
     except Exception as e:
         logger.exception(e)
+        raise e
     jojo_response = None
     try:
         jojoBaseUrl = os.environ.get("JOJO_BASE_URL")
@@ -141,6 +144,7 @@ def trascibe_jojo(wisco_id: str, jobInfo: dict):
         set_job_failed(wisco_id, f"Error in transcribing audio with JOJO: {jojo_response}")
         logger.error(f"Error processing job: {jobInfo['oldFileName']}")
         logger.exception(e)
+        raise e
 
 
 def transcribe_OpenAi(wisco_id: str, jobInfo: dict):
@@ -163,18 +167,26 @@ def transcribe_OpenAi(wisco_id: str, jobInfo: dict):
         set_job_failed(wisco_id, "Error in transcribing text")
         logger.exception(e)
         logger.error(f"Error transcribing file: {jobInfo['oldFileName']}")
+        raise e
 
 
 #Summarization
 
 def summarize(wisco_id):
-    with open(os.path.join(download_folder, "transcriptions", wisco_id.split(":")[-1] + ".txt"), 'r') as file:
-        transcript_text = file.read()
+    try:
+        with open(os.path.join(download_folder, "transcriptions", wisco_id.split(":")[-1] + ".txt"), 'r') as file:
+            transcript_text = file.read()
+    except Exception as e:
+        set_job_failed(wisco_id, "Error in reading tanscription Text file")
+        logger.exception(e)
+        raise e
+
 
     # TODO insert localisation Here
-    system_prompt = "Du fasst Transkripte zusammen. Da Fehler beim transkribieren passieren können, ist es wichtig, dass du eventuelle Logik Fehler korrigierst."
+    system_prompt = ("Du fasst Transkripte zusammen. Da Fehler beim transkribieren passieren können, ist es wichtig, "
+                     "dass du eventuelle Logik Fehler korrigierst. Es ist wichtig, dass du die ::title::, "
+                     "::content::, ::list:: und ::stitle:: auch direkt in den Text einfügt.")
     user_prompt = (
-        "wichtig: Gebe die Sektionen mit :: :: eins zu eins wieder"
         "::title::\n"
         "Fasse den Titel hier kurz zusammen und füge einen Zeilenumbruch ein.\n\n"
         "::content::\n"
@@ -190,6 +202,7 @@ def summarize(wisco_id):
 
 def openai_summaize(system_prompt, user_prompt, text, wisco_id):
     logger.info(f"Try to summarise text with id: {wisco_id}")
+    openai_resp = None
     try:
         openai_resp = client.chat.completions.create(
             model="gpt-3.5-turbo-0125",
@@ -202,6 +215,7 @@ def openai_summaize(system_prompt, user_prompt, text, wisco_id):
     except Exception as e:
         set_job_failed(wisco_id, "Error in summarising text - GPT Error")
         logger.exception(e)
+        raise e
     openai_resp_cont = openai_resp.choices[0].message.content
     if "::" in openai_resp_cont:
         file_name = os.path.join(download_folder, "summaries", wisco_id.split(":")[-1]) + ".txt"
@@ -211,7 +225,13 @@ def openai_summaize(system_prompt, user_prompt, text, wisco_id):
         change_key(wisco_id, "status", "summarised")
         logger.info("Text Summariesed Successfully with id: {wisco_id}")
     else:
+        file_name = os.path.join(download_folder, "failed-summaries", wisco_id.split(":")[-1]) + ".txt"
+        os.makedirs(os.path.dirname(file_name), exist_ok=True)
+        with open(file_name, 'w') as file:
+            file.write(openai_resp_cont)
         set_job_failed(wisco_id, "Error in summarising text - GPT Response Error")
+        logger.error("Error in summarising text - GPT Response Error")
+        raise Exception("Error in summarising text - GPT Response Error")
 
 
 #MD Creation
@@ -237,7 +257,7 @@ def create_md(wisco_id):
         file.write(md)
     change_key(wisco_id, "status", "summary-saved")
     change_key(wisco_id, "summary_file_name", f"{date_str}-{s_title}.md")
-    change_key(wisco_id, "finished_at", utils.get_time_since_epoch_as_str())
+    change_key(wisco_id, "finished_at", utils.get_epoch_time_as_string())
     # if all went well the quota is reduced by the munites of the audio file
     user = get_key(wisco_id, "user")
     auth.decrease_quota(user, get_key(wisco_id, "length"))
@@ -252,7 +272,7 @@ def add_id(job_id, service_id):
     r.json().set(str(job_id), Path.root_path(), data)
 
 
-def parse_job(settings: str, user_name, oldfileName, newFileName, length, r, status="audio", yt_url=None):
+def parse_job(settings: str, user_name, oldfileName, newFileName, length, status="audio", yt_url=None):
     jobInfos = {
         "user": user_name,
         "oldFileName": oldfileName,
@@ -260,7 +280,7 @@ def parse_job(settings: str, user_name, oldfileName, newFileName, length, r, sta
         "settings": json.loads(settings),
         "length": length,
         "yt_url": yt_url,
-        "created_at": utils.get_time_since_epoch_as_str(),
+        "created_at": utils.get_epoch_time_as_string(),
         "finished_at": "",
         "status": status,
         "error": ""
@@ -294,4 +314,4 @@ def get_key(wisco_id, key):
 def set_job_failed(wisco_id, error_msg):
     change_key(wisco_id, "status", "failed")
     change_key(wisco_id, "error", error_msg)
-    change_key(wisco_id, "finished_at", utils.get_time_since_epoch_as_str())
+    change_key(wisco_id, "finished_at", utils.get_epoch_time_as_string())
