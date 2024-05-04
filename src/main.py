@@ -250,7 +250,7 @@ async def receive_webhook(payload: utils.WebhookPayload):
                     wisco_id = search_res.docs[0].id
                     # Must be done in a queue but 10 seconds later because the file is not ready ye
 
-                    job = queue.enqueue_in(datetime.timedelta(seconds=10), handler.exec_transcription_done, args=(wisco_id, payload))
+                    job = queue.enqueue_in(datetime.timedelta(seconds=10), handler.exec_JOJO_flow, args=(wisco_id, payload))
 
                     # handler.exec_transcription_done(wisco_id, payload)
                 except Exception as e:
