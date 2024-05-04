@@ -17,21 +17,6 @@ if not os.path.exists(log_directory):
 logging.config.fileConfig('logging.conf')
 logger = logging.getLogger(__name__)
 
-
-
-
-
-
-# Redis Stuff
-
-import redis
-from redis.commands.json.path import Path
-import redis.commands.search.aggregation as aggregations
-import redis.commands.search.reducers as reducers
-from redis.commands.search.field import TextField, NumericField, TagField
-from redis.commands.search.indexDefinition import IndexDefinition, IndexType
-from redis.commands.search.query import NumericFilter, Query
-
 # Import Fastapi Stuff
 from typing import Annotated, List, Optional
 from fastapi.security.api_key import APIKey
@@ -50,33 +35,9 @@ import apiResponses
 # Log Start
 logger.info('Starting API')
 
-# Init DB
-# init indexing DB
-try:
-    schema_jobId = (TextField("$.service_id", as_name="service_id"), TextField("$.user", as_name="user"), TextField("$.yt_url", as_name="yt_url"))
-    r.ft("service_idIDX").create_index(schema_jobId, definition=IndexDefinition(prefix=["wisco:job:"], index_type=IndexType.JSON))
-except redis.exceptions.ResponseError as e:
-    None
-try:
-    schema_User = (TextField("$.api_key", as_name="apikey"), TextField("$.name", as_name="name"), TextField("$.role", as_name="role"))
-    r.ft("service_UserIDX").create_index(schema_User, definition=IndexDefinition(prefix=["wisco:user:"], index_type=IndexType.JSON))
-except redis.exceptions.ResponseError as e:
-    None
+# Init db
+utils.init_db()
 
-# Init Admin User
-wisco_user_id = "wisco:user:admin"
-wisco_user = {
-    "name": "admin",
-    "role": "admin", # admin or user can create other users
-    "email": os.getenv("admin_email"),
-    "password": os.getenv("admin_password"),
-    "api_key": os.getenv("admin_api_key"),
-    "quota": 10000,
-}
-try:
-    auth.updateUser(wisco_user_id, wisco_user)
-except redis.exceptions.ResponseError as e:
-    None
 
 app = FastAPI()
 
@@ -160,82 +121,11 @@ async def create_file(
     response = apiResponses.ApiResponse("success", f"Your Job was created with the ID: {wisco_job_id}")
     return response.to_dict()
 
-# User specific routes
-
-@app.post("/v1/getApiKey")
-async def get_api_key(
-        username: Annotated[str, Form()],
-        password: Annotated[str, Form()]):
-    try:
-        wisco_username = f"wisco:user:{username}"
-        if r.exists(wisco_username) == 0:
-            response = apiResponses.ApiResponse("fail", f"User {username} not found")
-            return response.to_dict()
-        user_api_key = auth.get_api_key_from_username(wisco_username, password)
-        if user_api_key is not False:
-            response = apiResponses.ApiResponse("success", f"Your API Key is {user_api_key}",raw=user_api_key)
-            return response.to_dict()
-        else:
-            response = apiResponses.ApiResponse("fail", "Password is incorrect")
-            return response.to_dict()
-    except Exception as e:
-        logger.exception(e)
-        response = apiResponses.ApiResponse("fail", "There was an error getting the API Key")
-        return response.to_dict()
-@app.post("/v1/getUserInfo")
-async def get_user_info(
-        api_key: APIKey = Depends(auth.get_api_key)):
-    try:
-        user_name = auth.get_user_name(str(api_key))
-        user_info = r.json().get("wisco:user:" + user_name)
-        user_info["password"] = "*********" # hide password
-        response = apiResponses.ApiResponse("success", f"Your user info is {user_info}", raw=user_info)
-        return response.to_dict()
-    except Exception as e:
-        logger.exception(e)
-        response = apiResponses.ApiResponse("fail", "There was an error getting the user info")
-        return response.to_dict()
-
-
-
-@app.post("/v1/getQuota")
-async def get_quota(
-        api_key: APIKey = Depends(auth.get_api_key)):
-    try:
-        quota = auth.get_remaining_quota(str(api_key))
-        response = apiResponses.ApiResponse("success", f"Your quota is {quota}", raw=quota)
-        return response.to_dict()
-    except Exception as e:
-        logger.exception(e)
-        response = apiResponses.ApiResponse("fail", "There was an error getting the quota")
-        return response.to_dict()
-
-
-@app.post("/v1/resummarize")
-async def resummarize(
-        wisco_id: Annotated[str, Form()],
-        api_key: APIKey = Depends(auth.get_api_key)):
-    # TODO add options
-    try:
-        handler.summarize(wisco_id)
-    except Exception as e:
-        logger.exception(e)
-    return {"status": "success"}
-
-@app.post("/v1/createMd")
-async def create_md_test(
-        wisco_id: Annotated[str, Form()],
-        api_key: APIKey = Depends(auth.get_api_key)):
-    # TODO add options
-    try:
-        handler.create_md(wisco_id)
-    except Exception as e:
-        logger.exception(e)
-    return {"status": "success"}
 
 
 
 
+#
 @app.post("/webhook/", response_model=dict, summary="Receive webhook",
           description="Receives a webhook POST request with an ID and a message.")
 async def receive_webhook(payload: utils.WebhookPayload):
@@ -333,3 +223,96 @@ async def get_Zip_File_Name(
     except Exception as e:
         logger.exception(e)
         return {"message": "There was an error getting the files"}
+
+# User specific routes
+
+@app.post("/v1/getApiKey")
+async def get_api_key(
+        username: Annotated[str, Form()],
+        password: Annotated[str, Form()]):
+    try:
+        wisco_username = f"wisco:user:{username}"
+        if r.exists(wisco_username) == 0:
+            response = apiResponses.ApiResponse("fail", f"User {username} not found")
+            return response.to_dict()
+        user_api_key = auth.get_api_key_from_username(wisco_username, password)
+        if user_api_key is not False:
+            response = apiResponses.ApiResponse("success", f"Your API Key is {user_api_key}",raw=user_api_key)
+            return response.to_dict()
+        else:
+            response = apiResponses.ApiResponse("fail", "Password is incorrect")
+            return response.to_dict()
+    except Exception as e:
+        logger.exception(e)
+        response = apiResponses.ApiResponse("fail", "There was an error getting the API Key")
+        return response.to_dict()
+@app.post("/v1/getUserInfo")
+async def get_user_info(
+        api_key: APIKey = Depends(auth.get_api_key)):
+    try:
+        user_name = auth.get_user_name(str(api_key))
+        user_info = r.json().get("wisco:user:" + user_name)
+        user_info["password"] = "*********" # hide password
+        response = apiResponses.ApiResponse("success", f"Your user info is {user_info}", raw=user_info)
+        return response.to_dict()
+    except Exception as e:
+        logger.exception(e)
+        response = apiResponses.ApiResponse("fail", "There was an error getting the user info")
+        return response.to_dict()
+
+
+
+@app.post("/v1/getQuota")
+async def get_quota(
+        api_key: APIKey = Depends(auth.get_api_key)):
+    try:
+        quota = auth.get_remaining_quota(str(api_key))
+        response = apiResponses.ApiResponse("success", f"Your quota is {quota}", raw=quota)
+        return response.to_dict()
+    except Exception as e:
+        logger.exception(e)
+        response = apiResponses.ApiResponse("fail", "There was an error getting the quota")
+        return response.to_dict()
+
+
+@app.post("/v1/resummarize")
+async def resummarize(
+        wisco_id: Annotated[str, Form()],
+        api_key: APIKey = Depends(auth.get_api_key)):
+    # TODO add options
+    try:
+        handler.summarize(wisco_id)
+    except Exception as e:
+        logger.exception(e)
+    return {"status": "success"}
+
+@app.post("/v1/createMd")
+async def create_md_test(
+        wisco_id: Annotated[str, Form()],
+        api_key: APIKey = Depends(auth.get_api_key)):
+    # TODO add options
+    try:
+        handler.create_md(wisco_id)
+    except Exception as e:
+        logger.exception(e)
+    return {"status": "success"}
+
+# Admin specific routes
+@app.post("/v1/commands")
+async def commands(
+        command: Annotated[str, Form()],
+        api_key: APIKey = Depends(auth.get_api_key)):
+    try:
+        # Check if user is admin
+        user_info = get_user_info(str(api_key))
+        if not user_info["role"] == "admin":
+            return {"message": "You are not allowed to use this command"}
+        if command == "FLUSHALL":
+            os.remove(download_folder)
+            os.remove(upload_folder)
+            r.flushall()
+            utils.init_db()
+            return {"message": "Database flushed"}
+    except Exception as e:
+        logger.exception(e)
+        return {"message": "There was an error executing the command"}

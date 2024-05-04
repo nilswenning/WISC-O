@@ -11,7 +11,48 @@ from pydantic import BaseModel
 from pydub import AudioSegment
 import math
 import bcrypt
+from conf import r
 from conf import download_folder
+import auth
+import redis
+from redis.commands.json.path import Path
+import redis.commands.search.aggregation as aggregations
+import redis.commands.search.reducers as reducers
+from redis.commands.search.field import TextField, NumericField, TagField
+from redis.commands.search.indexDefinition import IndexDefinition, IndexType
+from redis.commands.search.query import NumericFilter, Query
+
+
+def init_db():
+    try:
+        schema_jobId = (TextField("$.service_id", as_name="service_id"), TextField("$.user", as_name="user"),
+                        TextField("$.yt_url", as_name="yt_url"))
+        r.ft("service_idIDX").create_index(schema_jobId,
+                                           definition=IndexDefinition(prefix=["wisco:job:"], index_type=IndexType.JSON))
+    except redis.exceptions.ResponseError as e:
+        None
+    try:
+        schema_User = (TextField("$.api_key", as_name="apikey"), TextField("$.name", as_name="name"),
+                       TextField("$.role", as_name="role"))
+        r.ft("service_UserIDX").create_index(schema_User, definition=IndexDefinition(prefix=["wisco:user:"],
+                                                                                     index_type=IndexType.JSON))
+    except redis.exceptions.ResponseError as e:
+        None
+
+    # Init Admin User
+    wisco_user_id = "wisco:user:admin"
+    wisco_user = {
+        "name": "admin",
+        "role": "admin",  # admin or user can create other users
+        "email": os.getenv("admin_email"),
+        "password": os.getenv("admin_password"),
+        "api_key": os.getenv("admin_api_key"),
+        "quota": 10000,
+    }
+    try:
+        auth.updateUser(wisco_user_id, wisco_user)
+    except redis.exceptions.ResponseError as e:
+        None
 
 
 class WebhookPayload(BaseModel):
