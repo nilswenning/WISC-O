@@ -26,21 +26,35 @@ class ApiResponse(WiscoModel):
 
 
 class JobInfo(WiscoModel):
-        def __init__(self, user=None, oldFileName=None, newFileName=None, settings=None, length=None, yt_url=None,
-                     status=None, wisco_id=None):
-            self.id = wisco_id
-            self.user = user
-            self.oldFileName = oldFileName
-            self.newFileName = newFileName
-            self.settings = json.loads(settings) if settings is not None else None
-            self.length = length
-            self.yt_url = yt_url
-            self.created_at = utils.get_epoch_time()
-            self.finished_at = 0
-            self.downloaded = False
-            self.status = status
-            self.retry = 0
-            self.no_more_retry = False
-            self.error = ""
-            self.service_id = ""
-            self.summary_file_name = ""
+    def __init__(self, user=None, oldFileName=None, newFileName=None, settings=None, length=None, yt_url=None,
+                 status=None, wisco_id=None):
+        self.id = wisco_id
+        self.user = user
+        self.oldFileName = oldFileName
+        self.newFileName = newFileName
+        self.settings = json.loads(settings) if settings is not None else None
+        self.length = length
+        self.yt_url = yt_url
+        self.created_at = utils.get_epoch_time()
+        self.finished_at = 0
+        self.downloaded = False
+        self.status = status
+        self.retry = 0
+        self.no_more_retry = False
+        self.error = ""
+        self.service_id = ""
+        self.summary_file_name = ""
+
+
+class User(WiscoModel):
+    def __init__(self, name, role, email, password, api_key=None):
+        if api_key is None:
+            api_key = utils.get_random_string(12)
+        self.name = name
+        self.role = role
+        self.email = email
+        self.password = utils.hash_password(password)
+        self.api_key = api_key
+        self.quota = 600
+        self.created_at = utils.get_epoch_time()
+        self.used_minutes = 0

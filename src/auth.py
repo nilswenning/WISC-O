@@ -40,11 +40,11 @@ def get_user_name(api_key: str) -> str:
 def decrease_quota(user_name: str, quota: int):
     try:
         search_res = r.ft("service_UserIDX").search(user_name)
-        # if role is admin do not decrease quota
-        if json.loads(search_res.docs[0].json)["role"] == "admin":
-            return
         user_info = json.loads(search_res.docs[0].json)
-        user_info["quota"] -= quota
+        # if role is admin do not decrease quota
+        if not json.loads(search_res.docs[0].json)["role"] == "admin":
+            user_info["quota"] -= quota
+        user_info["used_minutes"] += quota
         r.json().set(search_res.docs[0].id, Path.root_path(), user_info)
     except Exception as e:
         logging.exception(e)
@@ -56,17 +56,6 @@ async def get_api_key(
         return api_key_header
     else:
         raise HTTPException(status_code=403)
-
-
-def hash_password(password):
-    salt = bcrypt.gensalt()
-    hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
-    return hashed.decode('utf-8')
-
-
-def updateUser(user_id, user_info):
-    user_info["password"] = hash_password(user_info["password"])
-    r.json().set(user_id, Path.root_path(), user_info)
 
 
 def check_password(user_id, password):
@@ -100,6 +89,11 @@ def get_jobs_from_user(user_name: str) -> list:
         user_job.from_dict(json.loads(doc.json))
         jobs.append(user_job)
     return jobs
+
+
+def create_user(user: models.User):
+    """Create a new user in the database."""
+    r.json().set("wisco:user:" + user.name, Path.root_path(), user.to_dict())
 
 if __name__ == "__main__":
     print(get_jobs_from_user("admin"))

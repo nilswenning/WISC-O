@@ -23,6 +23,8 @@ from redis.commands.search.field import TextField, NumericField, TagField
 from redis.commands.search.indexDefinition import IndexDefinition, IndexType
 from redis.commands.search.query import NumericFilter, Query
 
+from src import models
+
 
 def init_db():
     try:
@@ -41,17 +43,10 @@ def init_db():
         None
 
     # Init Admin User
-    wisco_user_id = "wisco:user:admin"
-    wisco_user = {
-        "name": "admin",
-        "role": "admin",  # admin or user can create other users
-        "email": os.getenv("admin_email"),
-        "password": os.getenv("admin_password"),
-        "api_key": os.getenv("admin_api_key"),
-        "quota": 10000,
-    }
+    admin_user = models.User("admin", "admin", os.getenv("admin_email"),
+                             os.getenv("admin_password"), api_key=os.getenv("admin_api_key"))
     try:
-        auth.updateUser(wisco_user_id, wisco_user)
+        auth.create_user(admin_user)
     except redis.exceptions.ResponseError as e:
         None
 
@@ -187,3 +182,14 @@ def remove_in_folder(folder_path):
             dir_path = os.path.join(root, name)
             shutil.rmtree(dir_path)
             logging.debug(f"Removed directory: {dir_path}")
+
+def get_random_string(length):
+    # choose from all lowercase letter
+    letters = string.ascii_lowercase
+    result_str = ''.join(random.choice(letters) for i in range(length))
+    return  result_str
+
+def hash_password(password):
+    salt = bcrypt.gensalt()
+    hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
+    return hashed.decode('utf-8')
