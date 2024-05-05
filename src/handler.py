@@ -12,6 +12,7 @@ from conf import upload_folder, download_folder ,number_of_retries
 from conf import r, queue
 from rq import Queue
 import utils
+import models
 import auth
 import base64
 
@@ -69,7 +70,7 @@ def exec_combined_flow(wisco_id):
             queue.enqueue(exec_combined_flow, wisco_id)
     else:
         change_key(wisco_id, "no_more_retry", True)
-        change_key(wisco_id, "finished_at", utils.get_epoch_time_as_string())
+        change_key(wisco_id, "finished_at", utils.get_epoch_time())
         logger.error(f"Max Retries reached for job: {wisco_id}")
 
 
@@ -266,7 +267,7 @@ def create_md(wisco_id):
         file.write(md)
     change_key(wisco_id, "status", "summary-saved")
     change_key(wisco_id, "summary_file_name", f"{date_str}-{s_title}.md")
-    change_key(wisco_id, "finished_at", utils.get_epoch_time_as_string())
+    change_key(wisco_id, "finished_at", utils.get_epoch_time())
     # if all went well the quota is reduced by the munites of the audio file
     user = get_key(wisco_id, "user")
     auth.decrease_quota(user, get_key(wisco_id, "length"))
@@ -282,28 +283,14 @@ def add_id(job_id, service_id):
 
 
 def parse_job(settings: str, user_name, oldfileName, newFileName, length, status="audio", yt_url=None):
-    jobInfos = {
-        "user": user_name,
-        "oldFileName": oldfileName,
-        "newFileName": newFileName,
-        "settings": json.loads(settings),
-        "length": length,
-        "yt_url": yt_url,
-        "created_at": utils.get_epoch_time_as_string(),
-        "finished_at": "",
-        "downloaded": False,
-        "status": status,
-        "retry": 0,
-        "no_more_retry": False,
-        "error": ""
-    }
-    return jobInfos
+    job_infos = models.JobInfo(user_name, oldfileName, newFileName, settings, length, yt_url, status)
+    return job_infos.to_dict()
 
 
 def create_job_info(job_info: dict, r: redis.Redis, queue: Queue):
     wisco_id = "wisco:job:" + job_info['newFileName'].split(".")[0]  # wisco_id consists of "wisco:job:" + random str
     logger.debug(f"Try To Create job: {wisco_id}")
-
+    job_info["id"] = wisco_id
     try:
         r.json().set(str(wisco_id), Path.root_path(), job_info)
     except Exception as e:
@@ -326,4 +313,4 @@ def get_key(wisco_id, key):
 def set_job_failed(wisco_id, error_msg):
     change_key(wisco_id, "status", "failed")
     change_key(wisco_id, "error", error_msg)
-    change_key(wisco_id, "finished_at", utils.get_epoch_time_as_string())
+    change_key(wisco_id, "finished_at", utils.get_epoch_time())

@@ -9,6 +9,7 @@ import datetime
 
 
 from conf import upload_folder, r, queue, download_folder, log_directory
+from redis.commands.search.query import NumericFilter, Query
 
 if not os.path.exists(log_directory):
     os.makedirs(log_directory)
@@ -28,7 +29,7 @@ from fastapi.responses import FileResponse
 import handler
 import utils
 import auth
-import apiResponses
+import models
 
 
 
@@ -59,11 +60,11 @@ async def create_file_dl(
     video_minutes = math.ceil(duration/60)
     try:
         if video_minutes > auth.get_remaining_quota(str(api_key)):
-            response = apiResponses.ApiResponse("fail", f"Your video is too long. You have only {auth.get_remaining_quota(str(api_key))} minutes left and the video is {video_minutes} minutes long")
+            response = models.ApiResponse("fail", f"Your video is too long. You have only {auth.get_remaining_quota(str(api_key))} minutes left and the video is {video_minutes} minutes long")
             return response.to_dict()
     except Exception as e:
         logger.exception(e)
-        response = apiResponses.ApiResponse("fail", f"Your video is too long. You have only {auth.get_remaining_quota(str(api_key))} minutes left and the video is {video_minutes} minutes long")
+        response = models.ApiResponse("fail", f"Your video is too long. You have only {auth.get_remaining_quota(str(api_key))} minutes left and the video is {video_minutes} minutes long")
         return response.to_dict()
 
     logger.info(f"processing YT Video: {file_name}")
@@ -75,7 +76,7 @@ async def create_file_dl(
     try:
         queue.enqueue(handler.dl_video, url, file_name, new_filename, new_filename_stripped, wisco_job_id, job_info)
         # Answer to the user
-        response = apiResponses.ApiResponse("success", f"Your Job was created with the ID: {wisco_job_id}")
+        response = models.ApiResponse("success", f"Your Job was created with the ID: {wisco_job_id}")
         return response.to_dict()
     except Exception as e:
         handler.change_key(wisco_job_id, "status", "DL_ERROR")
@@ -106,7 +107,7 @@ async def create_file(
             audo_length = utils.get_audio_length_in_minutes(os.path.join(folder, new_filename))
             if audo_length > auth.get_remaining_quota(str(api_key)):
                 quota = auth.get_remaining_quota(str(api_key))
-                response = apiResponses.ApiResponse("fail", f"Your audio is too long. You have only {quota} minutes left and the audio is {audo_length} minutes long")
+                response = models.ApiResponse("fail", f"Your audio is too long. You have only {quota} minutes left and the audio is {audo_length} minutes long")
                 return response.to_dict()
 
             job_info = handler.parse_job(settings, auth.get_user_name(str(api_key)), file.filename, new_filename, audo_length)
@@ -114,11 +115,11 @@ async def create_file(
             handler.start_transcription(wisco_job_id, job_info)
         except Exception as e:
             logger.exception(e)
-            response = apiResponses.ApiResponse("fail", f"Error processing file: {file.filename}")
+            response = models.ApiResponse("fail", f"Error processing file: {file.filename}")
             return response.to_dict()
         finally:
             file.file.close()
-    response = apiResponses.ApiResponse("success", f"Your Job was created with the ID: {wisco_job_id}")
+    response = models.ApiResponse("success", f"Your Job was created with the ID: {wisco_job_id}")
     return response.to_dict()
 
 
@@ -134,7 +135,9 @@ async def receive_webhook(payload: utils.WebhookPayload):
         if payload.source == "waas":
             if payload.success:
                 try:
-                    search_res = r.ft("service_idIDX").search(payload.job_id.split("-")[-1]) # idk why but searching for the whole sting failed -> only last chunck is used
+                    q = Query("@service_id:" + payload.job_id.split("-")[-1])
+                    # Execute the search using the defined index
+                    search_res = r.ft("service_idIDX").search(q)
                     wisco_id = search_res.docs[0].id
                     # Must be done in a queue but 10 seconds later because the file is not ready ye
 
@@ -233,18 +236,18 @@ async def get_api_key(
     try:
         wisco_username = f"wisco:user:{username}"
         if r.exists(wisco_username) == 0:
-            response = apiResponses.ApiResponse("fail", f"User {username} not found")
+            response = models.ApiResponse("fail", f"User {username} not found")
             return response.to_dict()
         user_api_key = auth.get_api_key_from_username(wisco_username, password)
         if user_api_key is not False:
-            response = apiResponses.ApiResponse("success", f"Your API Key is {user_api_key}",raw=user_api_key)
+            response = models.ApiResponse("success", f"Your API Key is {user_api_key}",raw=user_api_key)
             return response.to_dict()
         else:
-            response = apiResponses.ApiResponse("fail", "Password is incorrect")
+            response = models.ApiResponse("fail", "Password is incorrect")
             return response.to_dict()
     except Exception as e:
         logger.exception(e)
-        response = apiResponses.ApiResponse("fail", "There was an error getting the API Key")
+        response = models.ApiResponse("fail", "There was an error getting the API Key")
         return response.to_dict()
 @app.post("/v1/getUserInfo")
 async def get_user_info(
@@ -252,11 +255,11 @@ async def get_user_info(
     try:
         user_info = auth.get_user_info(str(api_key))
         user_info["password"] = "*********" # hide password
-        response = apiResponses.ApiResponse("success", f"Your user info is {user_info}", raw=user_info)
+        response = models.ApiResponse("success", f"Your user info is {user_info}", raw=user_info)
         return response.to_dict()
     except Exception as e:
         logger.exception(e)
-        response = apiResponses.ApiResponse("fail", "There was an error getting the user info")
+        response = models.ApiResponse("fail", "There was an error getting the user info")
         return response.to_dict()
 
 
@@ -266,11 +269,11 @@ async def get_quota(
         api_key: APIKey = Depends(auth.get_api_key)):
     try:
         quota = auth.get_remaining_quota(str(api_key))
-        response = apiResponses.ApiResponse("success", f"Your quota is {quota}", raw=quota)
+        response = models.ApiResponse("success", f"Your quota is {quota}", raw=quota)
         return response.to_dict()
     except Exception as e:
         logger.exception(e)
-        response = apiResponses.ApiResponse("fail", "There was an error getting the quota")
+        response = models.ApiResponse("fail", "There was an error getting the quota")
         return response.to_dict()
 
 
@@ -296,6 +299,18 @@ async def create_md_test(
         logger.exception(e)
     return {"status": "success"}
 
+@app.post("/v1/getJobs")
+async def get_jobs(
+        api_key: APIKey = Depends(auth.get_api_key)):
+    try:
+        user_name = auth.get_user_name(str(api_key))
+        jobs = auth.get_jobs_from_user(user_name)
+        api_response = models.ApiResponse("success", "Jobs retrieved successfully", raw=jobs)
+        return api_response.to_dict()
+    except Exception as e:
+        logger.exception(e)
+        return {"message": "There was an error getting the jobs"}
+
 # Admin specific routes
 @app.post("/v1/commands")
 async def commands(
@@ -305,7 +320,7 @@ async def commands(
         # Check if user is admin
         user_info = auth.get_user_info(str(api_key))
         if not user_info["role"] == "admin":
-            api_response = apiResponses.ApiResponse("fail", "You are not allowed to execute this command")
+            api_response = models.ApiResponse("fail", "You are not allowed to execute this command")
             return api_response.to_dict()
         logger.info(f"Executing command: {command}")
         if command == "FLUSHALL":
@@ -313,7 +328,7 @@ async def commands(
             utils.remove_in_folder(download_folder)
             r.flushall()
             utils.init_db()
-            api_response = apiResponses.ApiResponse("success", "Command executed successfully")
+            api_response = models.ApiResponse("success", "Command executed successfully")
             return api_response.to_dict()
     except Exception as e:
         logger.exception(e)

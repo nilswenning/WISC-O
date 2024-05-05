@@ -26,7 +26,7 @@ from redis.commands.search.query import NumericFilter, Query
 
 def init_db():
     try:
-        schema_jobId = (TextField("$.service_id", as_name="service_id"), TextField("$.user", as_name="user"),
+        schema_jobId = (TextField("$.service_id", as_name="service_id"), TextField("$.user", as_name="user"), NumericField("$.created_at", as_name="created_at"),
                         TextField("$.yt_url", as_name="yt_url"))
         r.ft("service_idIDX").create_index(schema_jobId,
                                            definition=IndexDefinition(prefix=["wisco:job:"], index_type=IndexType.JSON))
@@ -156,12 +156,10 @@ def create_summary_zip(file_names: list, user_name: str) -> str:
     return zip_file_name
 
 
-def get_epoch_time_as_string() -> str:
+def get_epoch_time() -> int:
     """Get the current time since epoch as a string."""
-    return str(round(datetime.datetime.now().timestamp()))
+    return int(round(datetime.datetime.now().timestamp()))
 
-
-import os
 
 
 def remove_in_folder(folder_path):

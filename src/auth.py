@@ -7,7 +7,9 @@ import json
 import redis
 import bcrypt
 from redis.commands.json.path import Path
+from redis.commands.search.query import  Query
 import logging
+import models
 
 # Load the logging configuration
 logger = logging.getLogger(__name__)
@@ -85,3 +87,19 @@ def get_user_info(api_key: str) -> dict:
     user_name = get_user_name(str(api_key))
     user_info = r.json().get("wisco:user:" + user_name)
     return user_info
+
+
+def get_jobs_from_user(user_name: str) -> list:
+    """Get all jobs from a user."""
+    q = Query("@user:" + user_name + "*").sort_by("created_at", asc=False)  # Use asc=True for ascending order
+    # Execute the search using the defined index
+    search_res = r.ft("service_idIDX").search(q)
+    jobs = []
+    for doc in search_res.docs:
+        user_job = models.JobInfo()
+        user_job.from_dict(json.loads(doc.json))
+        jobs.append(user_job)
+    return jobs
+
+if __name__ == "__main__":
+    print(get_jobs_from_user("admin"))
