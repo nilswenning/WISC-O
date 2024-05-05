@@ -49,7 +49,7 @@ class JobInfo(WiscoModel):
 class UserInfo(WiscoModel):
     def __init__(self, name, role, email, password, api_key=None):
         if api_key is None:
-            api_key = utils.get_random_string(12)
+            api_key = utils.generate_random_string(12)
         self.name = name
         self.role = role
         self.email = email
@@ -58,3 +58,9 @@ class UserInfo(WiscoModel):
         self.quota = 600
         self.created_at = utils.get_epoch_time()
         self.used_minutes = 0
+
+
+class JobResult(WiscoModel):
+    def __init__(self, transcribed_text=None, summary_text=None):
+        self.transcribed_text = transcribed_text
+        self.summary_text = summary_text

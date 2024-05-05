@@ -229,6 +229,35 @@ async def get_Zip_File_Name(
 
 # User specific routes
 
+
+@app.post("/v1/getJobResult")
+async def get_job_result(
+        jobid: Annotated[str, Form()],
+        api_key: APIKey = Depends (auth.get_api_key)):
+    try:
+        job_info = r.json().get("wisco:job:" + jobid)
+        if not job_info:
+            return {"message": "Job not found"}
+        if not job_info['user'] == auth.get_user_name(str(api_key)):
+            return {"message": "You are not allowed to get this job"}
+        if not job_info['status'] == "summary-saved":
+            return {"message": "The file is not ready yet"}
+        # Get Transcription and Summary
+        with open(os.path.join(download_folder, "transcriptions", job_info["newFileName"].split(".")[0] + ".txt"), 'r') as f:
+            transcription = f.read()
+        with open(os.path.join(download_folder, "md-files", job_info["summary_file_name"]), 'r') as f:
+            summary = f.read()
+        # Base64 encode the files
+        transcription = utils.base64_encode_string(transcription)
+        summary = utils.base64_encode_string(summary)
+        job_result = models.JobResult(transcribed_text=transcription, summary_text=summary)
+        response = models.ApiResponse("success", "Job result retrieved successfully", raw=job_result)
+        return response.to_dict()
+    except Exception as e:
+        logger.exception(e)
+        api_response = models.ApiResponse("fail", "There was an error getting the job")
+        return api_response.to_dict()
+
 @app.post("/v1/getApiKey")
 async def get_api_key(
         username: Annotated[str, Form()],

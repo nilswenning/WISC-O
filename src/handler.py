@@ -288,9 +288,10 @@ def parse_job(settings: str, user_name, oldfileName, newFileName, length, status
 
 
 def create_job_info(job_info: dict, r: redis.Redis, queue: Queue):
-    wisco_id = "wisco:job:" + job_info['newFileName'].split(".")[0]  # wisco_id consists of "wisco:job:" + random str
+    stripped_id = job_info['newFileName'].split(".")[0]
+    wisco_id = "wisco:job:" + stripped_id  # wisco_id consists of "wisco:job:" + random str
     logger.debug(f"Try To Create job: {wisco_id}")
-    job_info["id"] = wisco_id
+    job_info["id"] = stripped_id
     try:
         r.json().set(str(wisco_id), Path.root_path(), job_info)
     except Exception as e:

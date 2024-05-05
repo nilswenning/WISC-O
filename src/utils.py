@@ -15,6 +15,7 @@ import bcrypt
 from conf import r
 from conf import download_folder
 import auth
+import base64
 import redis
 from redis.commands.json.path import Path
 import redis.commands.search.aggregation as aggregations
@@ -182,13 +183,12 @@ def remove_in_folder(folder_path):
             shutil.rmtree(dir_path)
             logging.debug(f"Removed directory: {dir_path}")
 
-def get_random_string(length):
-    # choose from all lowercase letter
-    letters = string.ascii_lowercase
-    result_str = ''.join(random.choice(letters) for i in range(length))
-    return  result_str
 
 def hash_password(password):
     salt = bcrypt.gensalt()
     hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
     return hashed.decode('utf-8')
+
+
+def base64_encode_string(string):
+    return base64.b64encode(string.encode('utf-8')).decode('utf-8')
