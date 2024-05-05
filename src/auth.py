@@ -91,7 +91,7 @@ def get_jobs_from_user(user_name: str) -> list:
     return jobs
 
 
-def create_user(user: models.User):
+def create_user(user: models.UserInfo):
     """Create a new user in the database."""
     r.json().set("wisco:user:" + user.name, Path.root_path(), user.to_dict())
 

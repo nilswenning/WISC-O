@@ -22,8 +22,7 @@ import redis.commands.search.reducers as reducers
 from redis.commands.search.field import TextField, NumericField, TagField
 from redis.commands.search.indexDefinition import IndexDefinition, IndexType
 from redis.commands.search.query import NumericFilter, Query
-
-from src import models
+import models
 
 
 def init_db():
@@ -43,7 +42,7 @@ def init_db():
         None
 
     # Init Admin User
-    admin_user = models.User("admin", "admin", os.getenv("admin_email"),
+    admin_user = models.UserInfo("admin", "admin", os.getenv("admin_email"),
                              os.getenv("admin_password"), api_key=os.getenv("admin_api_key"))
     try:
         auth.create_user(admin_user)

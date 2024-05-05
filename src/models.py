@@ -46,7 +46,7 @@ class JobInfo(WiscoModel):
         self.summary_file_name = ""
 
 
-class User(WiscoModel):
+class UserInfo(WiscoModel):
     def __init__(self, name, role, email, password, api_key=None):
         if api_key is None:
             api_key = utils.get_random_string(12)
