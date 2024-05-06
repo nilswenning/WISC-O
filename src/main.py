@@ -237,16 +237,22 @@ async def get_job_result(
     try:
         job_info = r.json().get("wisco:job:" + jobid)
         if not job_info:
-            return {"message": "Job not found"}
+            response = models.ApiResponse("fail", "Job not found")
+            return response.to_dict()
         if not job_info['user'] == auth.get_user_name(str(api_key)):
-            return {"message": "You are not allowed to get this job"}
-        if not job_info['status'] == "summary-saved":
-            return {"message": "The file is not ready yet"}
+            response = models.ApiResponse("fail", "You are not allowed to get this job")
+            return response.to_dict()
         # Get Transcription and Summary
-        with open(os.path.join(download_folder, "transcriptions", job_info["newFileName"].split(".")[0] + ".txt"), 'r') as f:
-            transcription = f.read()
-        with open(os.path.join(download_folder, "md-files", job_info["summary_file_name"]), 'r') as f:
-            summary = f.read()
+        # check if file is created with os
+        transcription = ""
+        summary = ""
+        if os.path.exists(os.path.join(download_folder, "transcriptions", job_info["newFileName"].split(".")[0] + ".txt")):
+            with open(os.path.join(download_folder, "transcriptions", job_info["newFileName"].split(".")[0] + ".txt"), 'r') as f:
+                transcription = f.read()
+        if os.path.exists(os.path.join(download_folder, "md-files",  job_info["summary_file_name"])):
+            with open(os.path.join(download_folder, "md-files", job_info["summary_file_name"]), 'r') as f:
+                summary = f.read()
+
         # Base64 encode the files
         transcription = utils.base64_encode_string(transcription)
         summary = utils.base64_encode_string(summary)
@@ -327,6 +333,26 @@ async def create_md_test(
     except Exception as e:
         logger.exception(e)
     return {"status": "success"}
+
+
+@app.post("/v1/getJob")
+async def get_job(
+        jobid: Annotated[str, Form()],
+        api_key: APIKey = Depends(auth.get_api_key)):
+    try:
+        job_info = r.json().get("wisco:job:" + jobid)
+        if not job_info:
+            response = models.ApiResponse("fail", "Job not found")
+            return response.to_dict()
+        if not job_info['user'] == auth.get_user_name(str(api_key)):
+            response = models.ApiResponse("fail", "You are not allowed to get this job")
+            return response.to_dict()
+        response = models.ApiResponse("success", "Job retrieved successfully", raw=job_info)
+        return response.to_dict()
+    except Exception as e:
+        logger.exception(e)
+        return {"message": "There was an error getting the jobs"}
+
 
 @app.post("/v1/getJobs")
 async def get_jobs(
