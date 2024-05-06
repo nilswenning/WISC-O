@@ -315,25 +315,68 @@ async def get_quota(
 
 @app.post("/v1/resummarize")
 async def resummarize(
-        wisco_id: Annotated[str, Form()],
+        jobid: Annotated[str, Form()],
+        settings: Annotated[str, Form()],
         api_key: APIKey = Depends(auth.get_api_key)):
-    # TODO add options
     try:
-        handler.summarize(wisco_id)
-    except Exception as e:
-        logger.exception(e)
-    return {"status": "success"}
+        #check if user is allowed to resummarize
+        wisco_id = "wisco:job:" + jobid
+        job_info = r.json().get(wisco_id)
+        if not job_info:
+            response = models.ApiResponse("fail", "Job not found")
+            return response.to_dict()
+        if not job_info['user'] == auth.get_user_name(str(api_key)):
+            response = models.ApiResponse("fail", "You are not allowed to resummarize this job")
+            return response.to_dict()
+        if not (job_info['status'] == "summary-saved" or  job_info['status'] == "failed"):
+            response = models.ApiResponse("fail", "The file is not ready yet")
+            return response.to_dict()
+        # Dont change the server setting
+        settings = json.loads(settings)
+        settings["server"] = job_info.settings["server"]
 
-@app.post("/v1/createMd")
-async def create_md_test(
-        wisco_id: Annotated[str, Form()],
-        api_key: APIKey = Depends(auth.get_api_key)):
-    # TODO add options
-    try:
-        handler.create_md(wisco_id)
+        handler.change_key(wisco_id, "settings", settings)
+        handler.change_key(wisco_id, "status", "text")
+        handler.change_key(wisco_id, "retry", 0)
+        queue.enqueue(handler.exec_combined_flow, wisco_id)
+        response = models.ApiResponse("success", f"Your Job was resummarized with the ID: {wisco_id}")
+        logger.info(f"Job {wisco_id} queued to be resummarized")
+        return response.to_dict()
     except Exception as e:
         logger.exception(e)
-    return {"status": "success"}
+        response = models.ApiResponse("fail", "There was an error resummarizing the job")
+        return response.to_dict()
+
+@app.post("/v1/restartJob")
+async def restart_job(
+        jobid: Annotated[str, Form()],
+        settings: Annotated[str, Form()],
+        api_key: APIKey = Depends(auth.get_api_key)):
+    try:
+        # check if user is allowed to resummarize
+        wisco_id = "wisco:job:" + jobid
+        job_info = r.json().get(wisco_id)
+        if not job_info:
+            response = models.ApiResponse("fail", "Job not found")
+            return response.to_dict()
+        if not job_info['user'] == auth.get_user_name(str(api_key)):
+            response = models.ApiResponse("fail", "You are not allowed to recreate this job")
+            return response.to_dict()
+        settings = json.loads(settings)
+        handler.change_key(wisco_id, "settings", settings)
+        handler.change_key(wisco_id, "status", "audio")
+        handler.change_key(wisco_id, "retry", 0)
+        job_info = r.json().get(wisco_id)
+        handler.start_transcription(wisco_id, job_info)
+        response = models.ApiResponse("success", f"Your Job was recreated with the ID: {wisco_id}")
+        logger.info(f"Job {wisco_id} recreated and queued again")
+        return response.to_dict()
+    except Exception as e:
+        logger.exception(e)
+        response = models.ApiResponse("fail", "There was an error while recreating the job")
+        return response.to_dict()
+
+
 
 
 @app.post("/v1/getJob")
