@@ -64,3 +64,9 @@ class JobResult(WiscoModel):
     def __init__(self, transcribed_text=None, summary_text=None):
         self.transcribed_text = transcribed_text
         self.summary_text = summary_text
+
+class ServerOptions(WiscoModel):
+    def __init__(self, languages=None, summary_prompts=None):
+        self.server = ["OpenAI", "JOJO"]
+        self.languages = languages
+        self.summary_prompts = summary_prompts

@@ -14,6 +14,7 @@ from rq import Queue
 import utils
 import models
 import auth
+from prompts import prompts
 import base64
 
 from openai import OpenAI
@@ -27,15 +28,15 @@ client = OpenAI(
 # Handler Entry Point
 def start_transcription(wisco_id, job_info):
     settings = job_info['settings']
-    if settings["speed"] == "slow":
+    if settings["server"] == "JOJO":
         try:
             queue.enqueue(trascibe_jojo, wisco_id, job_info)
             logger.info(f"'{wisco_id}' Summarize started with JOJO")
         except Exception as e:
             logger.exception(e)
-    if settings["speed"] == "fast":
+    if settings["server"] == "OpenAI":
         try:
-            queue.enqueue(trascibe_jojo, wisco_id, job_info)
+            queue.enqueue(exec_OpenAI_flow, wisco_id, job_info)
         except Exception as e:
             logger.exception(e)
 
@@ -125,16 +126,14 @@ def trascibe_jojo(wisco_id: str, jobInfo: dict):
         webhook_id = os.environ.get("JOJO_WEBHOOK_ID")
     else:
         webhook_id = "WISCO"
-    params = {
-        'webhook_id': webhook_id,
-        'language': 'german',
-    }
-    if settings["accuracy"] == "high":
-        params['model'] = 'large-v2'
-    if settings["accuracy"] == "medium":
-        params['model'] = 'small'
-    if settings["accuracy"] == "low":
-        params['model'] = 'tiny'
+    params = {'webhook_id': webhook_id, 'language': 'german', 'model': 'large-v2'}
+    if "accuracy" in settings:
+        if settings["accuracy"] == "high":
+            params['model'] = 'large-v2'
+        if settings["accuracy"] == "medium":
+            params['model'] = 'small'
+        if settings["accuracy"] == "low":
+            params['model'] = 'tiny'
     if "language" in settings:
         params['language'] = settings["language"]
     try:
@@ -191,24 +190,20 @@ def summarize(wisco_id):
         logger.exception(e)
         raise e
 
-
-    # TODO insert localisation Here
-    system_prompt = ("Du fasst Transkripte zusammen. Da Fehler beim transkribieren passieren können, ist es wichtig, "
-                     "dass du eventuelle Logik Fehler korrigierst. Es ist wichtig, dass du die ::title::, "
-                     "::content::, ::list:: und ::stitle:: auch direkt in den Text einfügt.")
-    user_prompt = (
-        "::title::\n"
-        "Fasse den Titel hier kurz zusammen und füge einen Zeilenumbruch ein.\n\n"
-        "::content::\n"
-        "Fasse den Haupttext hier sehr ausführlich zusammen. Achte darauf, keine wichtigen Informationen wegzulassen. "
-        "Formatiere den Text angemessen und füge danach einen Zeilenumbruch ein.\n\n"
-        "::list::\n"
-        "Fasse den gesamten Text hier in einer Liste mit Stichpunkten zusammen. Schreibe dann in der nächsten Zeile.\n\n"
-        "::stitle::\n"
-        "Fasse den gesamten Text hier in maximal zwei Wörtern zusammen."
-    )
-    openai_summaize(system_prompt, user_prompt, str(transcript_text), wisco_id)
-
+    # Get Job info
+    job_info = r.json().get(wisco_id, Path.root_path())
+    language = "german"
+    summary_type = "call"
+    if "language" in job_info["settings"] or "sum_type" in job_info["settings"]:
+        language = job_info["settings"]["language"]
+        summary_type = job_info["settings"]["sum_type"]
+    system_prompt = prompts[language][summary_type]["short"]["system"]
+    user_prompt = prompts[language][summary_type]["short"]["user"]
+    try:
+        openai_summaize(system_prompt, user_prompt, str(transcript_text), wisco_id)
+    except Exception as e:
+        logger.exception(e)
+        raise e
 
 def openai_summaize(system_prompt, user_prompt, text, wisco_id):
     logger.info(f"Try to summarise text with id: {wisco_id}")

@@ -30,6 +30,7 @@ import handler
 import utils
 import auth
 import models
+from prompts import prompts
 
 
 
@@ -365,6 +366,22 @@ async def get_jobs(
     except Exception as e:
         logger.exception(e)
         return {"message": "There was an error getting the jobs"}
+
+# Service specific routes
+
+@app.post("/v1/getServerOptions")
+async def get_server_options(
+        api_key: APIKey = Depends(auth.get_api_key)):
+    try:
+        languages = list(prompts.keys())
+        summary_prompts = list(prompts["german"].keys())
+        server_options = models.ServerOptions(languages=languages, summary_prompts=summary_prompts)
+        response = models.ApiResponse("success", "Server options retrieved successfully", raw=server_options)
+        return response.to_dict()
+    except Exception as e:
+        logger.exception(e)
+        response = models.ApiResponse("fail", "There was an error getting the server options")
+        return response.to_dict()
 
 # Admin specific routes
 @app.post("/v1/commands")
