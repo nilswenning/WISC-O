@@ -133,7 +133,7 @@ async def create_file(
 async def receive_webhook(payload: utils.WebhookPayload):
     logger.info(f"Received webhook payload: {payload}")
     try:
-        if payload.source == "waas":
+        if payload.source == "waas" or payload.source == "waasX":
             if payload.success:
                 try:
                     q = Query("@service_id:" + payload.job_id.split("-")[-1])
@@ -141,7 +141,7 @@ async def receive_webhook(payload: utils.WebhookPayload):
                     search_res = r.ft("service_idIDX").search(q)
                     wisco_id = search_res.docs[0].id
                     # Must be done in a queue but 10 seconds later because the file is not ready ye
-
+                    logger.info(f"transcription done for {wisco_id}")
                     job = queue.enqueue_in(datetime.timedelta(seconds=10), handler.exec_JOJO_flow, args=(wisco_id, payload))
 
                     # handler.exec_transcription_done(wisco_id, payload)

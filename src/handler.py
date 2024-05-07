@@ -28,7 +28,7 @@ client = OpenAI(
 # Handler Entry Point
 def start_transcription(wisco_id, job_info):
     settings = job_info['settings']
-    if settings["server"] == "JOJO":
+    if settings["server"] == "JOJO" or settings["server"] == "waasX":
         try:
             queue.enqueue(trascibe_jojo, wisco_id, job_info)
             logger.info(f"'{wisco_id}' Summarize started with JOJO")
@@ -43,7 +43,7 @@ def start_transcription(wisco_id, job_info):
 
 # Workflows
 def exec_JOJO_flow(wisco_id, payload):
-    if payload.source == "waas":
+    if payload.source == "waas" or payload.source == "waasX":
         try:
             download_txt(payload.source, payload.job_id, payload.url, wisco_id)
             exec_combined_flow(wisco_id)
@@ -144,14 +144,22 @@ def trascibe_jojo(wisco_id: str, jobInfo: dict):
         raise e
     jojo_response = None
     try:
-        jojoBaseUrl = os.environ.get("JOJO_BASE_URL")
-        jojo_response = requests.post(f'{jojoBaseUrl}/v1/transcribe', params=params, headers=headers, data=data)
+        jojo_base_url = ""
+        if settings["server"] == "JOJO":
+            jojo_base_url = os.environ.get("JOJO_BASE_URL")
+        if settings["server"] == "waasX":
+            jojo_base_url = os.environ.get("WAASX_BASE_URL")
+        jojo_response = requests.post(f'{jojo_base_url}/v1/transcribe', params=params, headers=headers, data=data, timeout=10)
         service_id = "JOJO01." + str(jojo_response.json()['job_id'])  # use . so redis search dosnt get confused
         add_id(wisco_id, service_id)
         logger.info(f"Processing job: Sended to JOJO with id {service_id}")
     except Exception as e:
+        # Retry with OpenAI
+        settings["server"] = "OpenAI"
+        change_key(wisco_id, "settings", settings)
+        start_transcription(wisco_id, jobInfo)
+        logger.error(f"Error in transcribing audio with JOJO: {jojo_response}")
         set_job_failed(wisco_id, f"Error in transcribing audio with JOJO: {jojo_response}")
-        logger.error(f"Error processing job: {jobInfo['oldFileName']}")
         logger.exception(e)
         raise e
 

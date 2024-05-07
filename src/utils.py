@@ -4,6 +4,7 @@ import redis
 import random
 import string
 import os
+import requests
 import youtube_dl
 import datetime
 import pytz  # for timezones
@@ -192,3 +193,26 @@ def hash_password(password):
 
 def base64_encode_string(string):
     return base64.b64encode(string.encode('utf-8')).decode('utf-8')
+
+
+def check_waasX_avail(timeout=1):
+    url = f"{os.getenv('WAASX_BASE_URL')}/v1/isAvailable"
+    username = os.getenv("WAASX_AUTH_USER")
+    password = os.getenv("JOJO_AUTH_PASSWORD")
+    headers = {'accept': 'application/json'}
+
+    try:
+        response = requests.get(url, headers=headers, auth=(username, password), timeout=timeout)
+        if response.json()["available"]:
+            return True
+        else:
+            return False
+    except requests.Timeout:
+        logging.info("Server is Not Online")
+        return False
+    except requests.RequestException as e:
+        logging.error(f"An error occurred: {e}")
+        return False
+    except Exception as e:
+        logging.error(f"An error occurred: {e}")
+        return False
