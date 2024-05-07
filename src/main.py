@@ -40,6 +40,9 @@ logger.info('Starting API')
 # Init db
 utils.init_db()
 
+if os.getenv("WAASX_BASE_URL") is not None:
+    utils.save_waasX_state_to_db()
+
 
 app = FastAPI()
 

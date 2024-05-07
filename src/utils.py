@@ -13,7 +13,7 @@ from pydub import AudioSegment
 import math
 import shutil
 import bcrypt
-from conf import r
+from conf import r, queue
 from conf import download_folder
 import auth
 import base64
@@ -231,4 +231,17 @@ def check_waasX_avail(timeout=1):
         return False
     except Exception as e:
         logging.error(f"An error occurred: {e}")
+        return False
+
+def save_waasX_state_to_db():
+    if check_waasX_avail(5):
+        r.set("waasX:state", "available")
+    else:
+        r.set("waasX:state", "unavailable")
+    queue.enqueue_in(datetime.timedelta(seconds=30), save_waasX_state_to_db)
+
+def get_waasX_state_from_db():
+    if r.get("waasX:state") == "available":
+        return True
+    else:
         return False

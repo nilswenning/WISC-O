@@ -69,7 +69,7 @@ class JobResult(WiscoModel):
 class ServerOptions(WiscoModel):
     def __init__(self, languages=None, summary_prompts=None):
         self.server = []
-        if "WAASX_BASE_URL" in os.environ and utils.check_waasX_avail(timeout=1):
+        if "WAASX_BASE_URL" in os.environ and utils.get_waasX_state_from_db():
             self.server.append("waasX")
         self.server.append("OpenAI")
         if "JOJO_BASE_URL" in os.environ:
