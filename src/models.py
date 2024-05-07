@@ -68,11 +68,11 @@ class JobResult(WiscoModel):
 
 class ServerOptions(WiscoModel):
     def __init__(self, languages=None, summary_prompts=None):
-        self.server = ["OpenAI"]
-        # get env key
-        if "JOJO_BASE_URL" in os.environ:
-            self.server.append("JOJO")
+        self.server = []
         if "WAASX_BASE_URL" in os.environ and utils.check_waasX_avail(timeout=1):
             self.server.append("waasX")
+        self.server.append("OpenAI")
+        if "JOJO_BASE_URL" in os.environ:
+            self.server.append("JOJO")
         self.languages = languages
         self.summary_prompts = summary_prompts

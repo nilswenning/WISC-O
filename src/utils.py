@@ -25,6 +25,7 @@ from redis.commands.search.field import TextField, NumericField, TagField
 from redis.commands.search.indexDefinition import IndexDefinition, IndexType
 from redis.commands.search.query import NumericFilter, Query
 import models
+from bs4 import BeautifulSoup
 
 
 def init_db():
@@ -81,6 +82,21 @@ def sanitize_filename(filename: str) -> str:
 def remove_newlines(text: str) -> str:
     """Remove newline characters from a string."""
     return text.replace('\n', '')
+
+
+def extract_url(html_content):
+    # Parse the HTML
+    soup = BeautifulSoup(html_content, 'html.parser')
+
+    # Find the <link> tag with rel="canonical" attribute
+    canonical_link = soup.find('link', {'rel': 'canonical'})
+
+    if canonical_link:
+        # Extract the value of the "href" attribute
+        url = canonical_link.get('href')
+        return url
+    else:
+        return None
 
 
 def extract_video_info(url: str) -> tuple:

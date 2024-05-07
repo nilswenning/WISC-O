@@ -1,4 +1,5 @@
 import logging
+import math
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +77,41 @@ def exec_combined_flow(wisco_id):
 
 
 #Downloader
+
+
+def handle_yt_link(url, settings, api_key):
+    try:
+        file_name, duration = utils.extract_video_info(url)
+    except Exception as e:
+        logger.exception(e)
+        return {"message": f"There was an error getting video Infos"}
+
+    video_minutes = math.ceil(duration/60)
+    try:
+        if video_minutes > auth.get_remaining_quota(str(api_key)):
+            response = models.ApiResponse("fail", f"Your video is too long. You have only {auth.get_remaining_quota(str(api_key))} minutes left and the video is {video_minutes} minutes long")
+            return response.to_dict()
+    except Exception as e:
+        logger.exception(e)
+        response = models.ApiResponse("fail", f"Your video is too long. You have only {auth.get_remaining_quota(str(api_key))} minutes left and the video is {video_minutes} minutes long")
+        return response.to_dict()
+
+    logger.info(f"processing YT Video: {file_name}")
+    new_filename = utils.create_filename("mp3")
+    new_filename_stripped = new_filename.split(".")[0]
+    job_info = parse_job(settings, auth.get_user_name(str(api_key)), file_name, new_filename, video_minutes, status="DL", yt_url=url)
+    wisco_job_id = create_job_info(job_info, r, queue)
+    logger.info(f"Video: {file_name} connected with Job: {wisco_job_id}")
+    try:
+        queue.enqueue(dl_video, url, file_name, new_filename, new_filename_stripped, wisco_job_id, job_info)
+        # Answer to the user
+        response = models.ApiResponse("success", f"Your Job was created with the ID: {wisco_job_id}")
+        return response.to_dict()
+    except Exception as e:
+        change_key(wisco_job_id, "status", "DL_ERROR")
+        logger.exception(e)
+        return {"message": f"There was an error downloading the file"}
+
 def dl_video(url, file_name, new_filename, new_filename_stripped, wisco_job_id, job_info):
     try:
         folder = os.path.join(upload_folder, "audio")

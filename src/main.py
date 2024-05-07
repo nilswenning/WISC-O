@@ -48,41 +48,8 @@ app = FastAPI()
 async def create_file_dl(
         url: Annotated[str, Form()],
         settings: Annotated[str, Form()],
-        api_key: APIKey = Depends(auth.get_api_key)
-):
-
-
-    try:
-        file_name, duration = utils.extract_video_info(url)
-    except Exception as e:
-        logger.exception(e)
-        return {"message": f"There was an error getting video Infos"}
-
-    video_minutes = math.ceil(duration/60)
-    try:
-        if video_minutes > auth.get_remaining_quota(str(api_key)):
-            response = models.ApiResponse("fail", f"Your video is too long. You have only {auth.get_remaining_quota(str(api_key))} minutes left and the video is {video_minutes} minutes long")
-            return response.to_dict()
-    except Exception as e:
-        logger.exception(e)
-        response = models.ApiResponse("fail", f"Your video is too long. You have only {auth.get_remaining_quota(str(api_key))} minutes left and the video is {video_minutes} minutes long")
-        return response.to_dict()
-
-    logger.info(f"processing YT Video: {file_name}")
-    new_filename = utils.create_filename("mp3")
-    new_filename_stripped = new_filename.split(".")[0]
-    job_info = handler.parse_job(settings, auth.get_user_name(str(api_key)), file_name, new_filename, video_minutes, status="DL", yt_url=url)
-    wisco_job_id = handler.create_job_info(job_info, r, queue)
-    logger.info(f"Video: {file_name} connected with Job: {wisco_job_id}")
-    try:
-        queue.enqueue(handler.dl_video, url, file_name, new_filename, new_filename_stripped, wisco_job_id, job_info)
-        # Answer to the user
-        response = models.ApiResponse("success", f"Your Job was created with the ID: {wisco_job_id}")
-        return response.to_dict()
-    except Exception as e:
-        handler.change_key(wisco_job_id, "status", "DL_ERROR")
-        logger.exception(e)
-        return {"message": f"There was an error downloading the file"}
+        api_key: APIKey = Depends(auth.get_api_key)):
+    return handler.handle_yt_link(url, settings, api_key)
 
 
 # Allows for uploading multiple files
@@ -101,27 +68,54 @@ async def create_file(
             logger.debug(f"writing file: {new_filename}")
             folder = os.path.join(upload_folder, "audio")
             os.makedirs(folder, exist_ok=True)
-            with open(os.path.join(folder, new_filename), 'wb') as f:
-                while contents := file.file.read(1024 * 1024):
-                    f.write(contents)
 
-            audo_length = utils.get_audio_length_in_minutes(os.path.join(folder, new_filename))
-            if audo_length > auth.get_remaining_quota(str(api_key)):
-                quota = auth.get_remaining_quota(str(api_key))
-                response = models.ApiResponse("fail", f"Your audio is too long. You have only {quota} minutes left and the audio is {audo_length} minutes long")
+            if file.filename == "watch":
+                data = file.file.read(5000)
+                url = utils.extract_url(data)
+                if url is None:
+                    response = models.ApiResponse("fail", "No URL found in the file")
+                    return response.to_dict()
+                handler.handle_yt_link(url, settings, api_key)
+            elif extension in ["mp3", "wav", "flac", "m4a"]:
+                try:
+                    extension = os.path.splitext(file.filename)[1]
+                    if extension == ".mp3":
+
+                        with open(os.path.join(folder, new_filename), 'wb') as f:
+                            while contents := file.file.read(1024 * 1024):
+                                f.write(contents)
+
+                        audo_length = utils.get_audio_length_in_minutes(os.path.join(folder, new_filename))
+                        if audo_length > auth.get_remaining_quota(str(api_key)):
+                            quota = auth.get_remaining_quota(str(api_key))
+                            response = models.ApiResponse("fail", f"Your audio is too long. You have only {quota} minutes left and the audio is {audo_length} minutes long")
+                            return response.to_dict()
+
+                        job_info = handler.parse_job(settings, auth.get_user_name(str(api_key)), file.filename, new_filename, audo_length)
+                        wisco_job_id = handler.create_job_info(job_info, r, queue)
+                        handler.start_transcription(wisco_job_id, job_info)
+                except Exception as e:
+                    logger.exception(e)
+                    response = models.ApiResponse("fail", f"Error processing file: {file.filename}")
+                    return response.to_dict()
+                finally:
+                    file.file.close()
+                response = models.ApiResponse("success", f"Your Job was created with the ID: {wisco_job_id}")
                 return response.to_dict()
-
-            job_info = handler.parse_job(settings, auth.get_user_name(str(api_key)), file.filename, new_filename, audo_length)
-            wisco_job_id = handler.create_job_info(job_info, r, queue)
-            handler.start_transcription(wisco_job_id, job_info)
+            else:
+                logger.info(f"File extension not supported: {extension} coming from file: {file.filename}")
+                response = models.ApiResponse("fail", "File extension not supported")
+                return response.to_dict()
         except Exception as e:
             logger.exception(e)
             response = models.ApiResponse("fail", f"Error processing file: {file.filename}")
             return response.to_dict()
-        finally:
-            file.file.close()
-    response = models.ApiResponse("success", f"Your Job was created with the ID: {wisco_job_id}")
-    return response.to_dict()
+
+
+
+
+
+
 
 
 
@@ -134,6 +128,7 @@ async def receive_webhook(payload: utils.WebhookPayload):
     logger.info(f"Received webhook payload: {payload}")
     try:
         if payload.source == "waas" or payload.source == "waasX":
+            wisco_id = ""
             if payload.success:
                 try:
                     q = Query("@service_id:" + payload.job_id.split("-")[-1])
@@ -148,8 +143,7 @@ async def receive_webhook(payload: utils.WebhookPayload):
                 except Exception as e:
                     logger.exception(e)
             else:
-                None
-                # TODO Report Error to user
+                handler.set_job_failed(wisco_id, "Transcription failed")
     except Exception as e:
         logger.exception(e)
     return {"message": "Webhook received successfully!"}
