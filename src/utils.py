@@ -241,7 +241,7 @@ def save_waasX_state_to_db():
     queue.enqueue_in(datetime.timedelta(seconds=30), save_waasX_state_to_db)
 
 def get_waasX_state_from_db():
-    if r.get("waasX:state") == "available":
+    if r.get("waasX:state") == b"available":
         return True
     else:
         return False
