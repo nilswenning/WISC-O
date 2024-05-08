@@ -8,7 +8,7 @@ import json
 import datetime
 
 
-from conf import upload_folder, r, queue, download_folder, log_directory
+from conf import upload_folder, r, queue, download_folder, log_directory, download_file_extension
 from redis.commands.search.query import NumericFilter, Query
 
 if not os.path.exists(log_directory):
@@ -252,8 +252,8 @@ async def get_job_result(
         # check if file is created with os
         transcription = ""
         summary = ""
-        if os.path.exists(os.path.join(download_folder, "transcriptions", job_info["newFileName"].split(".")[0] + ".txt")):
-            with open(os.path.join(download_folder, "transcriptions", job_info["newFileName"].split(".")[0] + ".txt"), 'r') as f:
+        if os.path.exists(os.path.join(download_folder, "transcriptions", job_info["newFileName"].split(".")[0] + download_file_extension)):
+            with open(os.path.join(download_folder, "transcriptions", job_info["newFileName"].split(".")[0] + download_file_extension), 'r') as f:
                 transcription = f.read()
         if os.path.exists(os.path.join(download_folder, "md-files",  job_info["summary_file_name"])):
             with open(os.path.join(download_folder, "md-files", job_info["summary_file_name"]), 'r') as f:
