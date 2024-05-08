@@ -74,9 +74,11 @@ def create_filename(extension: str) -> str:
 
 
 def sanitize_filename(filename: str) -> str:
-    """Remove unwanted characters from the filename."""
+    """Remove unwanted characters from the filename, replace spaces with underscores, and remove leading non-alphanumeric characters."""
+    filename = filename.replace(" ", "_")
     whitelist = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_öüäß")
-    return ''.join(char for char in filename if char in whitelist)
+    sanitized = ''.join(char for char in filename if char in whitelist)
+    return sanitized.lstrip('_')
 
 
 def remove_newlines(text: str) -> str:

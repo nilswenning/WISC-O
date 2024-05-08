@@ -17,5 +17,12 @@ upload_folder = os.path.join("..", "uploads")
 download_folder = os.path.join("..", "downloads")
 log_directory = '../logs'
 
+# GPT Config
+#gpt_model = "gpt-3.5-turbo-0125"
+gpt_model = "gpt-4-turbo"
+
 # Other Config
 number_of_retries = 3
+download_file_extension = ".srt"
+
+

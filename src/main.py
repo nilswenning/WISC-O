@@ -448,6 +448,7 @@ async def commands(
             utils.remove_in_folder(download_folder)
             r.flushall()
             utils.init_db()
+            utils.save_waasX_state_to_db()
             api_response = models.ApiResponse("success", "Command executed successfully")
             return api_response.to_dict()
     except Exception as e:
