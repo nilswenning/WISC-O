@@ -39,6 +39,7 @@ def start_transcription(wisco_id, job_info):
         try:
             queue.enqueue(exec_OpenAI_flow, wisco_id, job_info)
         except Exception as e:
+            set_job_failed(wisco_id, "Error in starting OpenAI transcription")
             logger.exception(e)
 
 
@@ -71,6 +72,7 @@ def exec_combined_flow(wisco_id):
             change_key(wisco_id, "retry", get_key(wisco_id, "retry") + 1)
             queue.enqueue(exec_combined_flow, wisco_id)
     else:
+        set_job_failed(wisco_id, "Max Retries reached")
         change_key(wisco_id, "no_more_retry", True)
         change_key(wisco_id, "finished_at", utils.get_epoch_time())
         logger.error(f"Max Retries reached for job: {wisco_id}")
@@ -141,7 +143,6 @@ def download_txt(service, job_id, url, wisco_id):
             file.write(response.text)
         change_key(wisco_id, "status", "text")
     except Exception as e:
-        set_job_failed(wisco_id, "Error in downloading text")
         logger.exception(e)
         raise e
 
@@ -195,7 +196,6 @@ def trascibe_jojo(wisco_id: str, jobInfo: dict):
         change_key(wisco_id, "settings", settings)
         start_transcription(wisco_id, jobInfo)
         logger.error(f"Error in transcribing audio with JOJO: {jojo_response}")
-        set_job_failed(wisco_id, f"Error in transcribing audio with JOJO: {jojo_response}")
         logger.exception(e)
         raise e
 
@@ -217,7 +217,6 @@ def transcribe_OpenAi(wisco_id: str, jobInfo: dict):
             change_key(wisco_id, "status", "text")
 
     except Exception as e:
-        set_job_failed(wisco_id, "Error in transcribing text")
         logger.exception(e)
         logger.error(f"Error transcribing file: {jobInfo['oldFileName']}")
         raise e
@@ -230,7 +229,6 @@ def summarize(wisco_id):
         with open(os.path.join(download_folder, "transcriptions", wisco_id.split(":")[-1] + ".txt"), 'r') as file:
             transcript_text = file.read()
     except Exception as e:
-        set_job_failed(wisco_id, "Error in reading tanscription Text file")
         logger.exception(e)
         raise e
 
@@ -262,7 +260,6 @@ def openai_summaize(system_prompt, user_prompt, text, wisco_id):
             ]
         )
     except Exception as e:
-        set_job_failed(wisco_id, "Error in summarising text - GPT Error")
         logger.exception(e)
         raise e
     openai_resp_cont = openai_resp.choices[0].message.content
@@ -278,7 +275,6 @@ def openai_summaize(system_prompt, user_prompt, text, wisco_id):
         os.makedirs(os.path.dirname(file_name), exist_ok=True)
         with open(file_name, 'w') as file:
             file.write(openai_resp_cont)
-        set_job_failed(wisco_id, "Error in summarising text - GPT Response Error")
         logger.error("Error in summarising text - GPT Response Error")
         raise Exception("Error in summarising text - GPT Response Error")
 

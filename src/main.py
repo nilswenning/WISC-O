@@ -140,13 +140,21 @@ async def receive_webhook(payload: utils.WebhookPayload):
                     wisco_id = search_res.docs[0].id
                     # Must be done in a queue but 10 seconds later because the file is not ready ye
                     logger.info(f"transcription done for {wisco_id}")
-                    job = queue.enqueue_in(datetime.timedelta(seconds=10), handler.exec_JOJO_flow, args=(wisco_id, payload))
+                    wait_time = 10
+                    if payload.source == "waasX":
+                        wait_time = 0
+                    job = queue.enqueue_in(datetime.timedelta(seconds=wait_time), handler.exec_JOJO_flow, args=(wisco_id, payload))
 
                     # handler.exec_transcription_done(wisco_id, payload)
                 except Exception as e:
                     logger.exception(e)
             else:
-                handler.set_job_failed(wisco_id, "Transcription failed")
+                job_infos = r.json().get(wisco_id)
+                settings = job_infos["settings"]
+                settings["server"] = "OpenAI"
+                handler.change_key(wisco_id, "settings", settings)
+                handler.change_key(wisco_id, "status", "audio")
+                handler.start_transcription(wisco_id, job_infos)
     except Exception as e:
         logger.exception(e)
     return {"message": "Webhook received successfully!"}
