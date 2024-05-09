@@ -18,8 +18,16 @@ download_folder = os.path.join("..", "downloads")
 log_directory = '../logs'
 
 # GPT Config
-#gpt_model = "gpt-3.5-turbo-0125"
-gpt_model = "gpt-4-turbo"
+if os.getenv('gpt_model') is not None:
+    gpt_model = os.getenv('gpt_model')
+else:
+    gpt_model = "gpt-3.5-turbo-0125"
+# Fallback model
+gpt_fallback_model = "gpt-4-turbo"
+
+
+# Transcription Config
+supported_languages = ["english", "german"]
 
 # Other Config
 number_of_retries = 3

@@ -2,6 +2,7 @@ import json
 import os
 from datetime import datetime
 import utils  # assuming utils module exists with get_epoch_time_as_string function
+import conf
 
 
 class WiscoModel():
@@ -34,6 +35,9 @@ class JobInfo(WiscoModel):
         self.oldFileName = oldFileName
         self.newFileName = newFileName
         self.settings = json.loads(settings) if settings is not None else None
+        if self.settings is None:
+            self.settings = {}
+        self.settings["gpt_model"] = conf.gpt_model
         self.length = length
         self.yt_url = yt_url
         self.created_at = utils.get_epoch_time()

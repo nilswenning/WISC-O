@@ -8,7 +8,7 @@ import json
 import datetime
 
 
-from conf import upload_folder, r, queue, download_folder, log_directory, download_file_extension
+from conf import upload_folder, r, queue, download_folder, log_directory, download_file_extension, supported_languages
 from redis.commands.search.query import NumericFilter, Query
 
 if not os.path.exists(log_directory):
@@ -255,7 +255,7 @@ async def get_job_result(
         if os.path.exists(os.path.join(download_folder, "transcriptions", job_info["newFileName"].split(".")[0] + download_file_extension)):
             with open(os.path.join(download_folder, "transcriptions", job_info["newFileName"].split(".")[0] + download_file_extension), 'r') as f:
                 transcription = f.read()
-        if os.path.exists(os.path.join(download_folder, "md-files",  job_info["summary_file_name"])):
+        if os.path.exists(os.path.join(download_folder, "md-files",  job_info["summary_file_name"])) and job_info["summary_file_name"] != "":
             with open(os.path.join(download_folder, "md-files", job_info["summary_file_name"]), 'r') as f:
                 summary = f.read()
 
@@ -338,8 +338,6 @@ async def resummarize(
             return response.to_dict()
         # Dont change the server setting
         settings = json.loads(settings)
-        settings["server"] = job_info.settings["server"]
-
         handler.change_key(wisco_id, "settings", settings)
         handler.change_key(wisco_id, "status", "text")
         handler.change_key(wisco_id, "retry", 0)
@@ -421,8 +419,8 @@ async def get_jobs(
 async def get_server_options(
         api_key: APIKey = Depends(auth.get_api_key)):
     try:
-        languages = list(prompts.keys())
-        summary_prompts = list(prompts["german"].keys())
+        languages = supported_languages
+        summary_prompts = list(prompts.keys())
         server_options = models.ServerOptions(languages=languages, summary_prompts=summary_prompts)
         response = models.ApiResponse("success", "Server options retrieved successfully", raw=server_options)
         return response.to_dict()

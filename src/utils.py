@@ -86,6 +86,15 @@ def remove_newlines(text: str) -> str:
     return text.replace('\n', '')
 
 
+def remove_srt_tags(text: str) -> str:
+    lines = text.split("\n")
+    new_lines = []
+    for line in lines:
+        if line.startswith("["):
+            new_lines.append(line)
+    return "\n".join(new_lines)
+
+
 def extract_url(html_content):
     # Parse the HTML
     soup = BeautifulSoup(html_content, 'html.parser')

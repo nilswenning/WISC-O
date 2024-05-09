@@ -1,6 +1,8 @@
 import logging
 import math
 
+import openai
+
 logger = logging.getLogger(__name__)
 
 from datetime import datetime
@@ -9,7 +11,7 @@ import json
 import redis
 from redis.commands.json.path import Path
 import requests
-from conf import upload_folder, download_folder ,number_of_retries, download_file_extension, gpt_model
+import conf
 from conf import r, queue
 from rq import Queue
 import utils
@@ -62,7 +64,7 @@ def exec_OpenAI_flow(wisco_id, job_info):
 
 
 def exec_combined_flow(wisco_id):
-    if get_key(wisco_id, "retry") < number_of_retries:
+    if get_key(wisco_id, "retry") < conf.number_of_retries:
         try:
             summarize(wisco_id)
             create_md(wisco_id)
@@ -116,7 +118,7 @@ def handle_yt_link(url, settings, api_key):
 
 def dl_video(url, file_name, new_filename, new_filename_stripped, wisco_job_id, job_info):
     try:
-        folder = os.path.join(upload_folder, "audio")
+        folder = os.path.join(conf.upload_folder, "audio")
         os.makedirs(folder, exist_ok=True)
         logger.debug(f"Downloading file: {new_filename}")
         utils.download_video_as_mp3(url, new_filename_stripped)
@@ -129,7 +131,7 @@ def dl_video(url, file_name, new_filename, new_filename_stripped, wisco_job_id, 
 
 
 def download_txt(service, job_id, url, wisco_id):
-    url = url + f"?output={download_file_extension.replace('.','')}"
+    url = url + f"?output={conf.download_file_extension.replace('.','')}"
     jojo_auth = f"{os.environ.get('JOJO_AUTH_USER')}:{os.environ.get('JOJO_AUTH_PASSWORD')}"
     auth_base64 = base64.b64encode(jojo_auth.encode()).decode()
     headers = {
@@ -137,7 +139,7 @@ def download_txt(service, job_id, url, wisco_id):
     }
     try:
         response = requests.get(url, headers=headers)
-        file_name = os.path.join(download_folder, "transcriptions", wisco_id.split(":")[-1]) + download_file_extension
+        file_name = os.path.join(conf.download_folder, "transcriptions", wisco_id.split(":")[-1]) + conf.download_file_extension
         os.makedirs(os.path.dirname(file_name), exist_ok=True)
         with open(file_name, 'w') as file:
             file.write(response.text)
@@ -174,7 +176,7 @@ def trascibe_jojo(wisco_id: str, jobInfo: dict):
     if "language" in settings:
         params['language'] = settings["language"]
     try:
-        with open(os.path.join(upload_folder, "audio", jobInfo['newFileName']), 'rb') as file:
+        with open(os.path.join(conf.upload_folder, "audio", jobInfo['newFileName']), 'rb') as file:
             data = file.read()
     except Exception as e:
         logger.exception(e)
@@ -203,14 +205,14 @@ def trascibe_jojo(wisco_id: str, jobInfo: dict):
 def transcribe_OpenAi(wisco_id: str, jobInfo: dict):
     try:
         # Open the audio file in read-binary mode
-        with open(os.path.join(upload_folder, "audio", jobInfo['newFileName']), 'rb') as audio_file:
+        with open(os.path.join(conf.upload_folder, "audio", jobInfo['newFileName']), 'rb') as audio_file:
             transcription = client.audio.transcriptions.create(
                 model="whisper-1",
                 file=audio_file
             )
             logger.info(f"Transcription for {jobInfo['oldFileName']} done")
 
-            file_name = os.path.join(download_folder, "transcriptions", wisco_id.split(":")[-1]) + download_file_extension
+            file_name = os.path.join(conf.download_folder, "transcriptions", wisco_id.split(":")[-1]) + conf.download_file_extension
             os.makedirs(os.path.dirname(file_name), exist_ok=True)
             with open(file_name, "w") as text_file:
                 text_file.write(transcription.text)
@@ -226,29 +228,32 @@ def transcribe_OpenAi(wisco_id: str, jobInfo: dict):
 
 def summarize(wisco_id):
     try:
-        with open(os.path.join(download_folder, "transcriptions", wisco_id.split(":")[-1] + download_file_extension), 'r') as file:
+        with open(os.path.join(conf.download_folder, "transcriptions", wisco_id.split(":")[-1] + conf.download_file_extension), 'r') as file:
             transcript_text = file.read()
     except Exception as e:
         logger.exception(e)
         raise e
 
+    transcript_text = str(transcript_text)
+    if conf.download_file_extension == ".srt":
+        transcript_text = utils.remove_srt_tags(transcript_text)
     # Get Job info
     job_info = r.json().get(wisco_id, Path.root_path())
-    language = "german"
     summary_type = "call"
-    if "language" in job_info["settings"] or "sum_type" in job_info["settings"]:
-        language = job_info["settings"]["language"]
+    if "sum_type" in job_info["settings"]:
         summary_type = job_info["settings"]["sum_type"]
-    system_prompt = prompts[language][summary_type]["system"]
-    user_prompt = prompts[language][summary_type]["user"]
+    system_prompt = prompts[summary_type]["system"]
+    user_prompt = prompts[summary_type]["user"]
     try:
-        openai_summaize(system_prompt, user_prompt, str(transcript_text), wisco_id)
+        openai_summaize(system_prompt, user_prompt, transcript_text, wisco_id)
     except Exception as e:
         logger.exception(e)
         raise e
 
 def openai_summaize(system_prompt, user_prompt, text, wisco_id):
     logger.info(f"Try to summarise text with id: {wisco_id}")
+    settings = get_key(wisco_id, "settings")
+    gpt_model = settings["gpt_model"]
     openai_resp = None
     try:
         openai_resp = client.chat.completions.create(
@@ -259,19 +264,24 @@ def openai_summaize(system_prompt, user_prompt, text, wisco_id):
                 {"role": "assistant", "content": text},
             ]
         )
+    except openai.BadRequestError as e:
+        logger.error(f"Error in summarising text - GPT Request Error changing model To gpt-4")
+        settings["gpt_model"] = conf.gpt_fallback_model
+        change_key(wisco_id, "settings", settings)
+        raise e
     except Exception as e:
         logger.exception(e)
         raise e
     openai_resp_cont = openai_resp.choices[0].message.content
     if "Title:" in openai_resp_cont:
-        file_name = os.path.join(download_folder, "summaries", wisco_id.split(":")[-1]) + ".txt"
+        file_name = os.path.join(conf.download_folder, "summaries", wisco_id.split(":")[-1]) + ".txt"
         os.makedirs(os.path.dirname(file_name), exist_ok=True)
         with open(file_name, 'w') as file:
             file.write(openai_resp_cont)
         change_key(wisco_id, "status", "summarised")
         logger.info("Text Summariesed Successfully with id: {wisco_id}")
     else:
-        file_name = os.path.join(download_folder, "failed-summaries", wisco_id.split(":")[-1]) + ".txt"
+        file_name = os.path.join(conf.download_folder, "failed-summaries", wisco_id.split(":")[-1]) + ".txt"
         os.makedirs(os.path.dirname(file_name), exist_ok=True)
         with open(file_name, 'w') as file:
             file.write(openai_resp_cont)
@@ -284,23 +294,27 @@ def openai_summaize(system_prompt, user_prompt, text, wisco_id):
 
 def create_md(wisco_id):
     logging.info("Create MD with id: {wisco_id}")
-    with open(os.path.join(download_folder, "summaries", wisco_id.split(":")[-1] + ".txt"), 'r') as file:
+    with open(os.path.join(conf.download_folder, "summaries", wisco_id.split(":")[-1] + ".txt"), 'r') as file:
         summary_text = file.read()
-    summary_text = summary_text.replace("Title:", "")
-    # Get First Line
-    s_title_arr = summary_text.split("\n")
-    # Loop So long if the first line is not empty
-    s_title = ""
-    for line in s_title_arr:
-        if line != "":
-            s_title = line
-            break
     # Remove Title:
+    summary_text = summary_text.replace("Title:", "")
+    job_info = r.json().get(wisco_id, Path.root_path())
+    if job_info["yt_url"] != "":
+        # Get First Line
+        s_title_arr = summary_text.split("\n")
+        # Loop So long if the first line is not empty
+        s_title = ""
+        for line in s_title_arr:
+            if line != "":
+                s_title = line
+                break
+    else:
+        s_title = job_info["oldFileName"]
     # Remove newlines and sanitize
     s_title = utils.remove_newlines(s_title)
     s_title = utils.sanitize_filename(s_title)
     date_str = datetime.now().strftime("%Y-%m-%d")
-    file_name = os.path.join(download_folder, "md-files", f"{date_str}-{s_title}.md")
+    file_name = os.path.join(conf.download_folder, "md-files", f"{date_str}-{s_title}.md")
     os.makedirs(os.path.dirname(file_name), exist_ok=True)
     with open(file_name, 'w') as file:
         file.write(summary_text)
