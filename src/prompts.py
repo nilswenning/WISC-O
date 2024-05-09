@@ -9,12 +9,13 @@ prompts = {
             "user": """
             Write a # followed by 'Title:', and then the title of the text as a heading.
             Add a line break.\n\n
-            Write the Names of the speakers in bold if they are mentioned.
-            If an event with a date is mentioned, write this event with the date in bold and italic at the beginning of the text.
-            Briefly summarize the main text ensuring no important information is missed.
-            If numbers are mentions make sure to include them in the summary.
-            Format the text appropriately and then add a line break.\n\n
-            Provide a detailed summary of the entire text in bullet points.
+            Write the names of the speakers in bold when they are mentioned.
+            If an event with a date is mentioned, write this event with the date in bold and italics at the beginning of the text.
+            Briefly summarize the main text and make sure that no important information is missing.
+            Format the text accordingly and then add a line break.\n\n
+            Write a list of all the information mentioned in the text in bullet points.
+            Go into great detail on these information and topics of the text in subpoints.
+            If numbers are mentioned, make sure they are included in the summary.
         """
         },
         "YT-Summary": {
@@ -76,9 +77,10 @@ prompts = {
         Schreiben Sie die Namen der Sprecher in Fettdruck, wenn sie erwähnt werden.
         Wenn ein Ereignis mit einem Datum erwähnt wird, schreiben Sie dieses Ereignis mit dem Datum in Fettdruck und kursiv am Anfang des Textes.
         Fassen Sie den Haupttext kurz zusammen und stellen Sie sicher, dass keine wichtigen Informationen fehlen.
-        Wenn Zahlen erwähnt werden, stellen Sie sicher, dass sie in der Zusammenfassung enthalten sind.
         Formatieren Sie den Text entsprechend und fügen Sie dann einen Zeilenumbruch hinzu.\n\n
-        Stellen Sie eine detaillierte Zusammenfassung des gesamten Textes in Stichpunkten bereit.
+        Schreiben Sie eine Auflistung aller genannten Informationen im Text in Stichpunkten.
+        Gehe auf diese Informationen und Themen des Textes in Unterpunkten sehr Ausführlich  ein.
+        Wenn Zahlen erwähnt werden, stellen Sie sicher, dass sie in der Zusammenfassung enthalten sind.
         """
         },
         "YT-Summary": {
