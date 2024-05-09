@@ -51,6 +51,16 @@ class JobInfo(WiscoModel):
         self.summary_file_name = ""
 
 
+class Settings(WiscoModel):
+    def __init__(self, server="OpenAI",  prompt=None, language=None, summary_prompt=None, accuracy=None):
+        self.server = server
+        self.prompt = prompt
+        self.language = language
+        self.summary_prompt = summary_prompt
+        self.accuracy = accuracy
+        self.gpt_model = conf.gpt_model
+
+
 class UserInfo(WiscoModel):
     def __init__(self, name, role, email, password, api_key=None):
         if api_key is None:

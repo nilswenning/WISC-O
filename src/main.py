@@ -150,9 +150,10 @@ async def receive_webhook(payload: utils.WebhookPayload):
                     logger.exception(e)
             else:
                 job_infos = r.json().get(wisco_id)
-                settings = job_infos["settings"]
+                settings = models.Settings()
+                settings = settings.from_dict(job_infos["settings"])
                 settings["server"] = "OpenAI"
-                handler.change_key(wisco_id, "settings", settings)
+                handler.change_key(wisco_id, "settings", settings.to_dict())
                 handler.change_key(wisco_id, "status", "audio")
                 handler.start_transcription(wisco_id, job_infos)
     except Exception as e:
@@ -324,6 +325,7 @@ async def resummarize(
         settings: Annotated[str, Form()],
         api_key: APIKey = Depends(auth.get_api_key)):
     try:
+        settings_str = settings
         #check if user is allowed to resummarize
         wisco_id = "wisco:job:" + jobid
         job_info = r.json().get(wisco_id)
@@ -337,8 +339,9 @@ async def resummarize(
             response = models.ApiResponse("fail", "The file is not ready yet")
             return response.to_dict()
         # Dont change the server setting
-        settings = json.loads(settings)
-        handler.change_key(wisco_id, "settings", settings)
+        settings = models.Settings()
+        settings.from_json(settings_str)
+        handler.change_key(wisco_id, "settings", settings.to_dict())
         handler.change_key(wisco_id, "status", "text")
         handler.change_key(wisco_id, "retry", 0)
         queue.enqueue(handler.exec_combined_flow, wisco_id)
@@ -356,6 +359,7 @@ async def restart_job(
         settings: Annotated[str, Form()],
         api_key: APIKey = Depends(auth.get_api_key)):
     try:
+        settings_str = settings
         # check if user is allowed to resummarize
         wisco_id = "wisco:job:" + jobid
         job_info = r.json().get(wisco_id)
@@ -365,8 +369,9 @@ async def restart_job(
         if not job_info['user'] == auth.get_user_name(str(api_key)):
             response = models.ApiResponse("fail", "You are not allowed to recreate this job")
             return response.to_dict()
-        settings = json.loads(settings)
-        handler.change_key(wisco_id, "settings", settings)
+        settings = models.Settings()
+        settings.from_json(settings_str)
+        handler.change_key(wisco_id, "settings", settings.to_dict())
         handler.change_key(wisco_id, "status", "audio")
         handler.change_key(wisco_id, "retry", 0)
         job_info = r.json().get(wisco_id)
@@ -419,8 +424,8 @@ async def get_jobs(
 async def get_server_options(
         api_key: APIKey = Depends(auth.get_api_key)):
     try:
-        languages = supported_languages
-        summary_prompts = list(prompts.keys())
+        languages = list(prompts.keys())
+        summary_prompts = list(prompts["english"].keys())
         server_options = models.ServerOptions(languages=languages, summary_prompts=summary_prompts)
         response = models.ApiResponse("success", "Server options retrieved successfully", raw=server_options)
         return response.to_dict()

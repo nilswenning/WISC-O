@@ -151,7 +151,8 @@ def download_txt(service, job_id, url, wisco_id):
 
 # Transcription
 def trascibe_jojo(wisco_id: str, jobInfo: dict):
-    settings = jobInfo['settings']
+    settings = models.Settings()
+    settings.from_dict(jobInfo["settings"])
     logger.info(f"Processing job {jobInfo['oldFileName']}")
     jojo_auth = f"{os.environ.get('JOJO_AUTH_USER')}:{os.environ.get('JOJO_AUTH_PASSWORD')}"
     auth_base64 = base64.b64encode(jojo_auth.encode()).decode()
@@ -166,15 +167,15 @@ def trascibe_jojo(wisco_id: str, jobInfo: dict):
     else:
         webhook_id = "WISCO"
     params = {'webhook_id': webhook_id, 'language': 'german', 'model': 'large-v2'}
-    if "accuracy" in settings:
-        if settings["accuracy"] == "high":
+    if settings.accuracy is not None:
+        if settings.accuracy == "high":
             params['model'] = 'large-v2'
-        if settings["accuracy"] == "medium":
+        if settings.accuracy == "medium":
             params['model'] = 'small'
-        if settings["accuracy"] == "low":
+        if settings.accuracy == "low":
             params['model'] = 'tiny'
-    if "language" in settings:
-        params['language'] = settings["language"]
+    if settings.language is not None:
+        params['language'] = settings.language
     try:
         with open(os.path.join(conf.upload_folder, "audio", jobInfo['newFileName']), 'rb') as file:
             data = file.read()
@@ -184,9 +185,9 @@ def trascibe_jojo(wisco_id: str, jobInfo: dict):
     jojo_response = None
     try:
         jojo_base_url = ""
-        if settings["server"] == "JOJO":
+        if settings.server == "JOJO":
             jojo_base_url = os.environ.get("JOJO_BASE_URL")
-        if settings["server"] == "waasX":
+        if settings.server == "waasX":
             jojo_base_url = os.environ.get("WAASX_BASE_URL")
         jojo_response = requests.post(f'{jojo_base_url}/v1/transcribe', params=params, headers=headers, data=data, timeout=10)
         service_id = "JOJO01." + str(jojo_response.json()['job_id'])  # use . so redis search dosnt get confused
@@ -194,8 +195,8 @@ def trascibe_jojo(wisco_id: str, jobInfo: dict):
         logger.info(f"Processing job: Sended to JOJO with id {service_id}")
     except Exception as e:
         # Retry with OpenAI
-        settings["server"] = "OpenAI"
-        change_key(wisco_id, "settings", settings)
+        settings.server = "OpenAI"
+        change_key(wisco_id, "settings", settings.to_dict())
         start_transcription(wisco_id, jobInfo)
         logger.error(f"Error in transcribing audio with JOJO: {jojo_response}")
         logger.exception(e)
@@ -240,10 +241,13 @@ def summarize(wisco_id):
     # Get Job info
     job_info = r.json().get(wisco_id, Path.root_path())
     summary_type = "call"
+    language = "english"
+    if "language" in job_info["settings"] or "sum_type" in job_info["settings"]:
+        language = job_info["settings"]["language"]
     if "sum_type" in job_info["settings"]:
         summary_type = job_info["settings"]["sum_type"]
-    system_prompt = prompts[summary_type]["system"]
-    user_prompt = prompts[summary_type]["user"]
+    system_prompt = prompts[language][summary_type]["system"]
+    user_prompt = prompts[language][summary_type]["user"]
     try:
         openai_summaize(system_prompt, user_prompt, transcript_text, wisco_id)
     except Exception as e:
@@ -252,8 +256,12 @@ def summarize(wisco_id):
 
 def openai_summaize(system_prompt, user_prompt, text, wisco_id):
     logger.info(f"Try to summarise text with id: {wisco_id}")
-    settings = get_key(wisco_id, "settings")
-    gpt_model = settings["gpt_model"]
+    settings = models.Settings()
+    settings.from_dict(get_key(wisco_id, "settings"))
+    gpt_model = settings.gpt_model
+
+    # Attach text to User Prompt
+    user_prompt = user_prompt + "The Input transcription is: \n" + text
     openai_resp = None
     try:
         openai_resp = client.chat.completions.create(
@@ -261,13 +269,12 @@ def openai_summaize(system_prompt, user_prompt, text, wisco_id):
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
-                {"role": "assistant", "content": text},
             ]
         )
     except openai.BadRequestError as e:
         logger.error(f"Error in summarising text - GPT Request Error changing model To gpt-4")
-        settings["gpt_model"] = conf.gpt_fallback_model
-        change_key(wisco_id, "settings", settings)
+        settings.gpt_model = conf.gpt_fallback_model
+        change_key(wisco_id, "settings", settings.to_dict())
         raise e
     except Exception as e:
         logger.exception(e)
