@@ -1,12 +1,14 @@
 prompts = {
     "call": {
         "system": """
-            You summarize transcripts in detail. Since transcription errors can occur, it's important that you correct any logical errors.
-            Format the text and write the output as Markdown text. Answer in the language of the input, whether it is English, German, or any other language.
+            You summarize transcripts in detail. Since transcription errors can occur, it's important that you correct any logical errors. 
+            First, detect the language of the input text. Once the language is identified, continue to format the text and write the output in the same language, whether it is English, German, or any other language. 
+            Use Markdown format for the output. 
             """,
         "user": """
             Write a # followed by 'Title:', and then the title of the text as a heading.
             Add a line break.\n\n
+            Write the Names of the speakers in bold if they are mentioned.
             If an event with a date is mentioned, write this event with the date in bold and italic at the beginning of the text.
             Briefly summarize the main text ensuring no important information is missed.
             Format the text appropriately and then add a line break.\n\n
@@ -15,8 +17,9 @@ prompts = {
     },
     "YT-Summary": {
         "system": """
-            You summarize transcripts in detail. Since transcription errors can occur, it's important that you correct any logical errors.
-            Format the text. Write the output as Markdown text. Answer in the language of the input, whether it is English, German, or any other language.
+            You summarize transcripts in detail. Since transcription errors can occur, it's important that you correct any logical errors. 
+            First, detect the language of the input text. Once the language is identified, continue to format the text and write the output in the same language, whether it is English, German, or any other language. 
+            Use Markdown format for the output. 
             """,
         "user": """
             Write a # followed by 'Title:', and then the title of the video as a heading.
@@ -30,8 +33,9 @@ prompts = {
     },
     "Discussion": {
         "system": """
-            You summarize transcripts in detail. Since transcription errors can occur, it's important that you correct any logical errors.
-            Format the text. Write the output as Markdown text. Answer in the language of the input, whether it is English, German, or any other language.
+            You summarize transcripts in detail. Since transcription errors can occur, it's important that you correct any logical errors. 
+            First, detect the language of the input text. Once the language is identified, continue to format the text and write the output in the same language, whether it is English, German, or any other language. 
+            Use Markdown format for the output. 
             """,
         "user": """
             Write a # followed by 'Title:', and then the title of the video as a heading.
@@ -42,7 +46,7 @@ prompts = {
 
         2. **Detailed Contributions by Speaker**:
            - Identify each speaker by their label (e.g., SPEAKER_00, SPEAKER_01) and replace it with their name if mentioned in the discussion.
-           - For each speaker, list their significant arguments and points made during the discussion.
+           - For each speaker, list all their arguments and points made during the discussion.
            - Each argument should be clearly bullet-pointed under the speaker's name or label.
 
         3. **Fact-Checking**:
