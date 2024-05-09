@@ -28,6 +28,7 @@ prompts = {
             Write a # followed by 'Title:', and then the title of the video as a heading.
             Add a line break.\n\n
             Summarize all mentioned information in the video in detail using bullet points, including detailed examples and direct quotes from the video. Explain each significant statement and its implications.
+            Include every Information and Facts mentioned in the video. No information should be left out.
             Delve into the respective information and themes of the video in sub-points. Elaborately recount the subject matter in these sub-points and explain the implications.
             If a question is asked in the video, develop a well-reasoned answer using the information from the video.
             Reflect on possible implications or lessons from the video content.
@@ -90,10 +91,14 @@ prompts = {
         Verwenden Sie das Markdown-Format für die Ausgabe.
         """,
             "user": """
-        Schreiben Sie ein # gefolgt von 'Title:', und dann den Titel des Videos als Überschrift.
-        Fügen Sie einen Zeilenumbruch hinzu.\n\n
-        Fassen Sie alle im Video erwähnten Informationen detailliert in Stichpunkten zusammen, einschließlich detaillierter Beispiele und direkter Zitate aus dem Video. Erklären Sie jede bedeutende Aussage und deren Implikationen.
-        Gehen Sie auf die jeweiligen Informationen und Themen des Videos in Unter
+            Schreiben Sie ein # gefolgt von 'Title:', und dann den Titel des Videos als Überschrift.
+            Fügen Sie einen Zeilenumbruch hinzu.\n\n
+            Fassen Sie alle im Video erwähnten Informationen detailliert in Stichpunkten zusammen, einschließlich detaillierter Beispiele und direkter Zitate aus dem Video. Erklären Sie jede bedeutende Aussage und deren Implikationen.
+            Beziehen Sie jede erwähnte Information und Fakten aus dem Video ein. Es darf keine Information ausgelassen werden.
+            Gehen Sie auf die jeweiligen Informationen und Themen des Videos in Unterpunkten ein. Erörtern Sie die Themen in diesen Unterpunkten ausführlich und erklären Sie die Implikationen.
+            Wenn im Video eine Frage gestellt wird, entwickeln Sie eine gut begründete Antwort anhand der Informationen aus dem Video.
+            Reflektieren Sie über mögliche Implikationen oder Lehren aus dem Videoinhalt.
+            Formatieren Sie den Text entsprechend und fügen Sie dann zwei Zeilenumbrüche hinzu.\n\n
         """
         },
         "Discussion": {
