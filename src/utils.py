@@ -230,18 +230,21 @@ def check_waasX_avail(timeout=1):
 
     try:
         response = requests.get(url, headers=headers, auth=(username, password), timeout=timeout)
+        if response.status_code != 200:
+            logging.debug("WAAS-X Server is Not Online")
+            return False
         if response.json()["available"]:
             return True
         else:
             return False
     except requests.Timeout:
-        logging.info("Server is Not Online")
+        logging.debug("WAAS-X Server is Not Online")
         return False
     except requests.RequestException as e:
-        logging.error(f"An error occurred: {e}")
+        logging.exception(e)
         return False
     except Exception as e:
-        logging.error(f"An error occurred: {e}")
+        logging.exception(e)
         return False
 
 def save_waasX_state_to_db():
