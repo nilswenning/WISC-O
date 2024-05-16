@@ -234,12 +234,11 @@ def summarize(wisco_id):
     except Exception as e:
         logger.exception(e)
         raise e
-
-    transcript_text = str(transcript_text)
-    if conf.download_file_extension == ".srt":
-        transcript_text = utils.remove_srt_tags(transcript_text)
     # Get Job info
     job_info = r.json().get(wisco_id, Path.root_path())
+    transcript_text = str(transcript_text)
+    if job_info["settings"]["server"] == "waasX" or job_info["settings"]["server"] == "JOJO":
+        transcript_text = utils.remove_srt_tags(transcript_text)
     summary_type = "call"
     language = "english"
     if "language" in job_info["settings"] or "sum_type" in job_info["settings"]:

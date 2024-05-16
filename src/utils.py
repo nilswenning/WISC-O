@@ -1,4 +1,5 @@
 import logging
+import re
 import zipfile
 import redis
 import random
@@ -87,12 +88,13 @@ def remove_newlines(text: str) -> str:
 
 
 def remove_srt_tags(text: str) -> str:
-    lines = text.split("\n")
-    new_lines = []
-    for line in lines:
-        if line.startswith("["):
-            new_lines.append(line)
-    return "\n".join(new_lines)
+    # Regular expression to match the SRT tags
+    srt_pattern = re.compile(r'\d+\n\d{2}:\d{2}:\d{2},\d{3} --> \d{2}:\d{2}:\d{2},\d{3}\n')
+
+    # Remove the SRT tags using sub method
+    cleaned_text = srt_pattern.sub('', text)
+
+    return cleaned_text
 
 
 def extract_url(html_content):
